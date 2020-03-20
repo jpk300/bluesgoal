@@ -1,0 +1,65 @@
+.squareb {
+    float:left;
+    position: relative;
+    width: 25%;
+    //padding-bottom : 5%; /* = width for a 1:1 aspect ratio */
+    margin:4.16%;
+    background-color: #002f87;
+    overflow:hidden;
+}
+
+.squarey {
+    float:left;
+    position: relative;
+    width: 93%;
+    padding-bottom : 93%; /* = width for a 1:1 aspect ratio */
+    margin:3.5%;
+    background-color: #FCB514; 
+    overflow:hidden;
+}
+
+.squareorig {
+    float:left;
+    position: relative;
+    width: 25%;
+    padding-bottom : 25%; /* = width for a 1:1 aspect ratio */
+    margin:4.16%;
+    background-color: #FCB514;
+    overflow:hidden;
+}
+
+.squaretrans {
+    float:left;
+    position: relative;
+    width: 25%;
+    padding-bottom : 25%; /* = width for a 1:1 aspect ratio */
+    margin:4.16%;
+    overflow:hidden;
+}
+
+.content {
+    position:absolute;
+    height:96%; /* = 100% - 2*5% padding */
+    width:96%; /* = 100% - 2*5% padding */
+    padding: 2%;
+    
+}
+.table{
+    display:table;
+    width:100%;
+    height:100%;
+}
+.table-cell{
+    display:table-cell;
+    vertical-align:middle;
+}
+
+
+/*  For responsive images */
+
+.content .rs{
+    width:auto;
+    height:auto;
+    max-height:90%;
+    max-width:100%;
+}
