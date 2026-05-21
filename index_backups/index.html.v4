@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>St. Louis Blues Goal Horn</title>
+    <link rel="stylesheet" href="stylesheets/main.css">
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
+
+</head>
+<body>
+    <main class="page" aria-label="St. Louis Blues Goal Horn controls">
+        <header class="hero">
+            <img class="hero__image" src="./images/nhl_goal_logo.jpeg" alt="St. Louis Blues goal horn">
+        </header>
+
+        <section class="button-grid">
+            <!-- Top row actions can be changed later by updating the href and image src values. -->
+            <a class="control-button" href="goalhorn/_powerplay.php" aria-label="Top button 1" data-action>
+                <span class="control-button__inner">
+                    <img src="./images/button_bluesgoal_powerplay.jpeg" alt="">
+                </span>
+            </a>
+
+            <a class="control-button" href="goalhorn/_bluesgoal_winterclassic.php" aria-label="Top button 2" data-action>
+                <span class="control-button__inner">
+                    <img src="./images/button_bluesgoal_winterclassic.jpeg" alt="">
+                </span>
+            </a>
+
+            <a class="control-button" href="goalhorn/_bluesgoal_oldschool.php" aria-label="Top button 3" data-action>
+                <span class="control-button__inner">
+                    <img src="./images/button_bluesgoal_oldschool.jpeg" alt="">
+                </span>
+            </a>
+
+            <a class="control-button control-button--wide" href="goalhorn/_volume_down.php" aria-label="Volume down" data-action>
+                <span class="control-button__inner">
+                    <img src="./images/button_volume_down.jpeg" alt="">
+                </span>
+            </a>
+
+            <a class="control-button control-button--wide" href="goalhorn/_stop.php" aria-label="Stop" data-action>
+                <span class="control-button__inner">
+                    <img src="./images/button_stop.png" alt="">
+                </span>
+            </a>
+
+            <a class="control-button control-button--wide" href="goalhorn/_volume_up.php" aria-label="Volume up" data-action>
+                <span class="control-button__inner">
+                    <img src="./images/button_volume_up.jpeg" alt="">
+                </span>
+            </a>
+        </section>
+    </main>
+    <script>
+        document.querySelectorAll('[data-action]').forEach((button) => {
+            button.addEventListener('click', (event) => {
+                event.preventDefault();
+
+                fetch(button.href, {
+                    cache: 'no-store',
+                    credentials: 'same-origin'
+                }).catch(() => {
+                    // Stay on the control page even if the action endpoint fails.
+                });
+            });
+        });
+    </script>
+</body>
+</html>
