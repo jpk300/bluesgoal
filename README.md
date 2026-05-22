@@ -4,7 +4,7 @@ A web-based goal horn and celebration system running on a Raspberry Pi that play
 
 ## Overview
 
-This application is a Python web app deployed on Apache2 that provides an intuitive touch-friendly interface to play various goal horn sounds and activate synchronized LED strobing lights. Perfect for celebrating Blues goals in real-time or practice mode.
+This application is a Python web app deployed on Apache2 that provides an intuitive touch-friendly interface to play various goal horn sounds and activate synchronized LED strobing lights. Perfect for Blues fans who want a dedicated celebration system!
 
 **Current Version:** v2.0.0
 
@@ -37,8 +37,10 @@ This application is a Python web app deployed on Apache2 that provides an intuit
 ### System Packages
 
 ```bash
-sudo apt-get install python3 python3-pip git apache2 mpg321
+sudo apt-get install python3 python3-pip git apache2 mpg321 php
 ```
+
+> **Note:** PHP is required if you want to test the scripts from the command line.
 
 ### Python Dependencies
 
