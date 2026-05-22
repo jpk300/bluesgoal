@@ -1,18 +1,20 @@
-import os
-import alsaaudio
+#!/usr/bin/python3
 
-#volume = "amixer get PCM | awk '$0~/%/{print $4}' | tr -d '[]%'"
-#print (volume)
+import subprocess
 
-#os.system('amixer set PCM -- 90%')
+subprocess.run([
+    "amixer",
+    "-c",
+    "1",
+    "set",
+    "PCM",
+    "5dB+"
+])
 
-m = alsaaudio.Mixer('PCM')
-vol = m.getvolume()
-vol = int(vol[0])
-
-newVol = vol+5
-
-if newVol <=100:
-	m.setvolume(newVol) 
-else:
-	exit
+subprocess.run([
+    "amixer",
+    "-c",
+    "1",
+    "get",
+    "PCM"
+])

@@ -25,6 +25,8 @@ try:
 
     subprocess.Popen([
         "mpg321",
+        "-a",
+        "hw:1,0",
         "/var/www/html/mp3/powerplay.mp3"
     ])
 
