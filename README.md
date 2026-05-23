@@ -24,7 +24,7 @@ This application is a Python web app deployed on Apache2 that provides an intuit
 
 ## Hardware Requirements
 
-- **Raspberry Pi** (tested on RPi 3B+ and later)
+- **Raspberry Pi** (tested on RPi 2b)
 - **LED Strobing Lights** (connected to GPIO pins 7 and 8)
 - **Audio Output** (3.5mm jack or USB audio device)
 - **Network Connection** (for web access)
