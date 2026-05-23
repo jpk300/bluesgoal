@@ -1,4 +1,7 @@
-#!/usr/bin/python
-import RPi.GPIO as GPIO, time, os, subprocess
-subprocess.Popen(["python", '/var/www/html/goalhorn/volume/volume_up.py'])
+#!/usr/bin/python3
+
+import subprocess
+import time
+
+subprocess.run(['python3', '/var/www/html/goalhorn/volume/volume_up.py'], check=False)
 time.sleep(1)
