@@ -1,7 +1,10 @@
 <?php
-header('Location: http://bluesgoal.home.local');
-$output = shell_exec('sudo python /var/www/html/goalhorn/marching_in/marching_in.py');
-echo "<pre>$output</pre>";
-?>
-$output = shell_exec('http://bluesgoal.home.local');
+require_once __DIR__ . '/_helpers.php';
 
+goalhorn_run_python_action(
+    'marching_in',
+    'Marching In started',
+    '/var/www/html/goalhorn/marching_in/marching_in.py',
+    true
+);
+?>

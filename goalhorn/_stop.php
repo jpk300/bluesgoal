@@ -1,32 +1,10 @@
 <?php
-/**
- * Stop Audio Endpoint
- * Stops any currently playing audio
- */
+require_once __DIR__ . '/_helpers.php';
 
-header('Content-Type: application/json');
-
-$PYTHON_SCRIPT = '/var/www/html/goalhorn/stop/stop_master.py';
-
-// Log activity
-@shell_exec('python3 /var/www/html/log_activity.py stop "Triggered from web UI" 2>/dev/null &');
-
-// Execute the stop script
-$output = shell_exec('sudo python3 ' . escapeshellarg($PYTHON_SCRIPT) . ' 2>&1');
-
-if ($output === null) {
-    http_response_code(500);
-    echo json_encode([
-        'success' => false,
-        'error' => 'Failed to execute stop command'
-    ]);
-    exit;
-}
-
-http_response_code(200);
-echo json_encode([
-    'success' => true,
-    'message' => 'Audio stopped',
-    'timestamp' => date('Y-m-d H:i:s')
-]);
+goalhorn_run_python_action(
+    'stop',
+    'Audio stopped',
+    '/var/www/html/goalhorn/stop/stop_master.py',
+    false
+);
 ?>
