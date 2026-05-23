@@ -40,7 +40,11 @@
                 </span>
             </a>
 
-            <div class="button-spacer" aria-hidden="true"></div>
+            <div class="center-logo-tile" aria-hidden="true">
+                <div class="center-logo-tile__inner">
+                    <img src="./images/bluesgoal_logo.jpeg" alt="">
+                </div>
+            </div>
 
             <a class="control-button" href="goalhorn/_marching_in.php" aria-label="Marching in" data-action>
                 <span class="control-button__inner">
@@ -70,7 +74,7 @@
 
     <script>
         // Track which buttons are currently processing
-        let processingButtons = new Set();
+        const processingButtons = new Set();
 
         // Fetch and display current status
         async function updateStatus() {
@@ -80,18 +84,21 @@
                     credentials: 'same-origin'
                 });
                 const data = await response.json();
-                
+
                 if (data.success && data.data) {
                     // Update volume display
                     if (data.data.volume && data.data.volume !== 'unknown') {
                         updateVolumeDisplay(data.data.volume);
                     }
-                    
+
                     // Update audio playing status
                     updateAudioStatus(data.data.audio_playing);
                 }
+
+                return true;
             } catch (e) {
                 console.error('Failed to get status:', e);
+                return false;
             }
         }
 
@@ -140,7 +147,7 @@
             indicator.title = isPlaying ? 'Audio playing' : 'Idle';
         }
 
-        function showNotification(message, type = 'info') {
+        function showNotification(message, type = 'info', durationMs = 3000) {
             const notification = document.createElement('div');
             notification.textContent = message;
             notification.style.cssText = `
@@ -158,13 +165,16 @@
                 ${type === 'error' ? 'background: #f44336; color: white;' : ''}
                 ${type === 'info' ? 'background: rgba(0,0,0,0.8); color: #fcb514;' : ''}
             `;
-            
+
             document.body.appendChild(notification);
-            
-            // Auto-remove after 3 seconds
-            setTimeout(() => {
-                notification.remove();
-            }, 3000);
+
+            if (durationMs > 0) {
+                setTimeout(() => {
+                    notification.remove();
+                }, durationMs);
+            }
+
+            return notification;
         }
 
         document.querySelectorAll('[data-action]').forEach((button) => {
@@ -172,18 +182,17 @@
                 event.preventDefault();
 
                 const buttonId = button.href;
-                
-                // Prevent multiple simultaneous clicks
+
+                // Prevent multiple simultaneous clicks on same action
                 if (processingButtons.has(buttonId)) {
                     showNotification('⏳ Wait for current action to complete', 'info');
                     return;
                 }
 
-                // Add visual feedback - button press effect
+                // Add visual feedback - keep button pressed while processing
                 processingButtons.add(buttonId);
-                button.disabled = true;
-                button.style.opacity = '0.6';
-                button.style.transform = 'scale(0.95)';
+                button.classList.add('control-button--processing');
+                const pendingNotification = showNotification('⏳ Activity in progress…', 'info', 0);
 
                 try {
                     const response = await fetch(button.href, {
@@ -194,15 +203,15 @@
                     const data = await response.json();
 
                     if (data.success) {
+                        // Refresh status once before releasing button state
+                        await updateStatus();
+
                         // Show success feedback
                         showNotification('✓ ' + (data.message || 'Action completed'), 'success');
-                        
-                        // Update status after a brief delay
-                        setTimeout(updateStatus, 500);
                     } else {
                         // Show error feedback
                         showNotification('✗ ' + (data.error || 'Action failed'), 'error');
-                        
+
                         // Show retry information if available
                         if (data.retry_after) {
                             setTimeout(() => {
@@ -216,9 +225,8 @@
                 } finally {
                     // Reset button state
                     processingButtons.delete(buttonId);
-                    button.disabled = false;
-                    button.style.opacity = '1';
-                    button.style.transform = 'scale(1)';
+                    button.classList.remove('control-button--processing');
+                    pendingNotification.remove();
                 }
             });
         });
@@ -231,6 +239,14 @@
     </script>
 
     <style>
+        .control-button.control-button--processing,
+        .control-button.control-button--processing:hover,
+        .control-button.control-button--processing:active {
+            opacity: 0.6;
+            transform: scale(0.95);
+            pointer-events: none;
+        }
+
         @keyframes slideIn {
             from {
                 transform: translateX(-400px);

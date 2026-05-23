@@ -85,7 +85,10 @@ body {
 }
 
 .control-button--wide {
-    height: calc(var(--button-size) / 2);
+    height: calc(var(--button-size) * 0.575);
+    border-radius: 999px;
+    overflow: hidden;
+
 }
 
 .control-button:focus-visible {
@@ -122,7 +125,9 @@ body {
 }
 
 .control-button--wide .control-button__inner {
-    padding: clamp(3px, .5vmin, 5px);
+    padding: clamp(1px, .2vmin, 2px);
+    border-radius: 999px;
+    background: #ffffff;
 }
 
 .control-button img {
@@ -131,6 +136,12 @@ body {
     height: 100%;
     object-fit: contain;
     object-position: center;
+}
+
+.control-button--wide img {
+    width: auto;
+    max-width: 88%;
+    height: 78%;
 }
 
 .center-logo-tile {
