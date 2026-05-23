@@ -16,19 +16,19 @@
 
         <section class="button-grid">
             <!-- Top row actions can be changed later by updating the href and image src values. -->
-            <a class="control-button" href="goalhorn/_powerplay.php" aria-label="Top button 1" data-action>
+            <a class="control-button" href="goalhorn/_powerplay.php" aria-label="Power Play" data-action>
                 <span class="control-button__inner">
                     <img src="./images/button_bluesgoal_powerplay.jpeg" alt="">
                 </span>
             </a>
 
-            <a class="control-button" href="goalhorn/_bluesgoal_winterclassic.php" aria-label="Top button 2" data-action>
+            <a class="control-button" href="goalhorn/_bluesgoal_winterclassic.php" aria-label="Winter Classic" data-action>
                 <span class="control-button__inner">
                     <img src="./images/button_bluesgoal_winterclassic.jpeg" alt="">
                 </span>
             </a>
 
-            <a class="control-button" href="goalhorn/_bluesgoal_oldschool.php" aria-label="Top button 3" data-action>
+            <a class="control-button" href="goalhorn/_bluesgoal_oldschool.php" aria-label="Old School" data-action>
                 <span class="control-button__inner">
                     <img src="./images/button_bluesgoal_oldschool.jpeg" alt="">
                 </span>
@@ -67,19 +67,180 @@
             </a>
         </section>
     </main>
-    <script>
-        document.querySelectorAll('[data-action]').forEach((button) => {
-            button.addEventListener('click', (event) => {
-                event.preventDefault();
 
-                fetch(button.href, {
+    <script>
+        // Track which buttons are currently processing
+        let processingButtons = new Set();
+
+        // Fetch and display current status
+        async function updateStatus() {
+            try {
+                const response = await fetch('goalhorn/_status.php', {
                     cache: 'no-store',
                     credentials: 'same-origin'
-                }).catch(() => {
-                    // Stay on the control page even if the action endpoint fails.
                 });
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    // Update volume display
+                    if (data.data.volume && data.data.volume !== 'unknown') {
+                        updateVolumeDisplay(data.data.volume);
+                    }
+                    
+                    // Update audio playing status
+                    updateAudioStatus(data.data.audio_playing);
+                }
+            } catch (e) {
+                console.error('Failed to get status:', e);
+            }
+        }
+
+        function updateVolumeDisplay(volume) {
+            let display = document.getElementById('volume-display');
+            if (!display) {
+                display = document.createElement('div');
+                display.id = 'volume-display';
+                display.style.cssText = `
+                    position: fixed;
+                    bottom: 20px;
+                    right: 20px;
+                    background: rgba(0, 47, 135, 0.9);
+                    color: #fcb514;
+                    padding: 12px 18px;
+                    border-radius: 8px;
+                    font-weight: bold;
+                    font-size: 14px;
+                    border: 2px solid #fcb514;
+                    z-index: 1000;
+                `;
+                document.body.appendChild(display);
+            }
+            display.textContent = `🔊 Volume: ${volume}%`;
+        }
+
+        function updateAudioStatus(isPlaying) {
+            let indicator = document.getElementById('audio-indicator');
+            if (!indicator) {
+                indicator = document.createElement('div');
+                indicator.id = 'audio-indicator';
+                indicator.style.cssText = `
+                    position: fixed;
+                    top: 20px;
+                    right: 20px;
+                    width: 12px;
+                    height: 12px;
+                    border-radius: 50%;
+                    background: #ccc;
+                    z-index: 1000;
+                    transition: background 0.3s;
+                `;
+                document.body.appendChild(indicator);
+            }
+            indicator.style.background = isPlaying ? '#4CAF50' : '#ccc';
+            indicator.title = isPlaying ? 'Audio playing' : 'Idle';
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                left: 20px;
+                padding: 15px 20px;
+                border-radius: 8px;
+                font-weight: bold;
+                z-index: 9999;
+                animation: slideIn 0.3s ease-out;
+                max-width: 300px;
+                word-wrap: break-word;
+                ${type === 'success' ? 'background: #4CAF50; color: white;' : ''}
+                ${type === 'error' ? 'background: #f44336; color: white;' : ''}
+                ${type === 'info' ? 'background: rgba(0,0,0,0.8); color: #fcb514;' : ''}
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto-remove after 3 seconds
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+
+        document.querySelectorAll('[data-action]').forEach((button) => {
+            button.addEventListener('click', async (event) => {
+                event.preventDefault();
+
+                const buttonId = button.href;
+                
+                // Prevent multiple simultaneous clicks
+                if (processingButtons.has(buttonId)) {
+                    showNotification('⏳ Wait for current action to complete', 'info');
+                    return;
+                }
+
+                // Add visual feedback - button press effect
+                processingButtons.add(buttonId);
+                button.disabled = true;
+                button.style.opacity = '0.6';
+                button.style.transform = 'scale(0.95)';
+
+                try {
+                    const response = await fetch(button.href, {
+                        cache: 'no-store',
+                        credentials: 'same-origin'
+                    });
+
+                    const data = await response.json();
+
+                    if (data.success) {
+                        // Show success feedback
+                        showNotification('✓ ' + (data.message || 'Action completed'), 'success');
+                        
+                        // Update status after a brief delay
+                        setTimeout(updateStatus, 500);
+                    } else {
+                        // Show error feedback
+                        showNotification('✗ ' + (data.error || 'Action failed'), 'error');
+                        
+                        // Show retry information if available
+                        if (data.retry_after) {
+                            setTimeout(() => {
+                                showNotification(`⏳ Please wait ${data.retry_after}s`, 'info');
+                            }, 500);
+                        }
+                    }
+                } catch (error) {
+                    showNotification('✗ Connection error', 'error');
+                    console.error('Request failed:', error);
+                } finally {
+                    // Reset button state
+                    processingButtons.delete(buttonId);
+                    button.disabled = false;
+                    button.style.opacity = '1';
+                    button.style.transform = 'scale(1)';
+                }
             });
         });
+
+        // Update status on page load
+        updateStatus();
+
+        // Update status every 5 seconds
+        setInterval(updateStatus, 5000);
     </script>
+
+    <style>
+        @keyframes slideIn {
+            from {
+                transform: translateX(-400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+    </style>
 </body>
 </html>
