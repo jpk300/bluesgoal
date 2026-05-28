@@ -44,6 +44,85 @@ body {
     object-position: center;
 }
 
+
+.feed-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(10px, 2vmin, 18px);
+    width: min(1180px, 100%);
+    margin: 0 auto;
+    padding: clamp(8px, 1.4vmin, 14px) clamp(10px, 2vmin, 22px);
+    background: rgba(2, 9, 23, 0.58);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.feed-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 34px;
+    color: #ffffff;
+    font-size: clamp(0.88rem, 1.7vmin, 1rem);
+    font-weight: 700;
+    cursor: pointer;
+    user-select: none;
+}
+
+.feed-toggle__input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.feed-toggle__track {
+    position: relative;
+    width: 52px;
+    height: 28px;
+    flex: 0 0 auto;
+    border: 2px solid rgba(255, 255, 255, 0.72);
+    background: #ffffff;
+    transition: background 160ms ease, border-color 160ms ease;
+}
+
+.feed-toggle__track::after {
+    content: "";
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    background: #002f87;
+    transition: transform 160ms ease, background 160ms ease;
+}
+
+.feed-toggle__input:checked + .feed-toggle__track {
+    border-color: #fcb514;
+    background: #fcb514;
+}
+
+.feed-toggle__input:checked + .feed-toggle__track::after {
+    transform: translateX(24px);
+    background: #06152d;
+}
+
+.feed-toggle__input:focus-visible + .feed-toggle__track {
+    outline: 3px solid #ffffff;
+    outline-offset: 3px;
+}
+
+.feed-toggle__input:disabled + .feed-toggle__track,
+.feed-toggle__input:disabled ~ .feed-toggle__label {
+    opacity: 0.55;
+}
+
+.feed-status {
+    min-width: min(390px, 48vw);
+    margin: 0;
+    color: rgba(255, 255, 255, 0.86);
+    font-size: clamp(0.8rem, 1.5vmin, 0.95rem);
+    line-height: 1.25;
+}
 .button-grid {
     --page-pad: clamp(8px, 3vmin, 42px);
     --gap: clamp(10px, 3vmin, 34px);
@@ -180,6 +259,20 @@ body {
 
     .hero__image {
         height: clamp(92px, 23vw, 140px);
+    }
+
+    .feed-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+    }
+
+    .feed-toggle {
+        justify-content: space-between;
+    }
+
+    .feed-status {
+        min-width: 0;
     }
 
     .button-grid {
