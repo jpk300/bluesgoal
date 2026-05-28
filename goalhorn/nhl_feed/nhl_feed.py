@@ -4,6 +4,7 @@
 import datetime as dt
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import time
@@ -32,8 +33,10 @@ STATE_FILE = "/tmp/bluesgoal_nhl_feed_state.json"
 PROCESS_LOCK_FILE = "/tmp/bluesgoal_nhl_feed.lock"
 ACTION_LOCK_FILE = "/tmp/bluesgoal_action.lock"
 
-WINTER_CLASSIC_SCRIPT = "/var/www/html/goalhorn/bluesgoal_winterclassic/bluesgoal_winterclassic_master.py"
-LOG_ACTIVITY_SCRIPT = "/var/www/html/log_activity.py"
+GOALHORN_DIR = Path(__file__).resolve().parents[1]
+REPO_ROOT = GOALHORN_DIR.parent
+WINTER_CLASSIC_SCRIPT = str(GOALHORN_DIR / "bluesgoal_winterclassic" / "bluesgoal_winterclassic_master.py")
+LOG_ACTIVITY_SCRIPT = str(REPO_ROOT / "log_activity.py")
 LIVE_STATES = {"LIVE", "CRIT"}
 FINISHED_STATES = {"FINAL", "OFF"}
 VALID_TEAMS = {
