@@ -10,17 +10,10 @@
 </head>
 <body>
     <main class="page" aria-label="St. Louis Blues Goal Horn controls">
+        <a class="settings-link settings-link--home" href="settings.html">Settings</a>
         <header class="hero">
             <img class="hero__image" src="./images/nhl_goal_logo.jpeg" alt="St. Louis Blues goal horn">
         </header>
-        <section class="feed-controls" aria-label="NHL API feed controls">
-            <label class="feed-toggle">
-                <input class="feed-toggle__input" type="checkbox" data-feed-toggle>
-                <span class="feed-toggle__track" aria-hidden="true"></span>
-                <span class="feed-toggle__label">NHL API feed</span>
-            </label>
-            <p class="feed-status" data-feed-status>Manual buttons only</p>
-        </section>
 
         <section class="button-grid">
             <!-- Top row actions can be changed later by updating the href and image src values. -->
@@ -83,9 +76,6 @@
     <script>
         // Track which buttons are currently processing
         const processingButtons = new Set();
-        const NHL_FEED_STATUS_URL = 'goalhorn/_nhl_feed.php';
-        const nhlFeedToggle = document.querySelector('[data-feed-toggle]');
-        const nhlFeedStatus = document.querySelector('[data-feed-status]');
 
         // Fetch and display current status
         async function updateStatus() {
@@ -144,7 +134,7 @@
                 indicator.style.cssText = `
                     position: fixed;
                     top: 20px;
-                    right: 20px;
+                    left: 20px;
                     width: 12px;
                     height: 12px;
                     border-radius: 50%;
@@ -187,86 +177,7 @@
 
             return notification;
         }
-
-
-        function renderNhlFeedStatus(payload) {
-            if (!nhlFeedToggle || !nhlFeedStatus) {
-                return;
-            }
-
-            const data = payload.data || {};
-            nhlFeedToggle.checked = Boolean(payload.enabled);
-
-            if (!payload.enabled) {
-                nhlFeedStatus.textContent = 'Manual buttons only';
-                return;
-            }
-
-            nhlFeedStatus.textContent = data.message || payload.message || 'NHL API feed enabled';
-        }
-
-        async function updateNhlFeedStatus() {
-            if (!nhlFeedToggle || !nhlFeedStatus) {
-                return false;
-            }
-
-            try {
-                const response = await fetch(NHL_FEED_STATUS_URL, {
-                    cache: 'no-store',
-                    credentials: 'same-origin'
-                });
-                const payload = await response.json();
-
-                if (payload.success) {
-                    renderNhlFeedStatus(payload);
-                    return true;
-                }
-            } catch (error) {
-                console.error('Failed to get NHL feed status:', error);
-            }
-
-            nhlFeedStatus.textContent = 'NHL API feed status unavailable';
-            return false;
-        }
-
-        async function setNhlFeedEnabled(enabled) {
-            if (!nhlFeedToggle || !nhlFeedStatus) {
-                return;
-            }
-
-            nhlFeedToggle.disabled = true;
-            nhlFeedStatus.textContent = enabled ? 'Starting NHL API feed...' : 'Stopping NHL API feed...';
-
-            try {
-                const response = await fetch(NHL_FEED_STATUS_URL, {
-                    method: 'POST',
-                    cache: 'no-store',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ enabled })
-                });
-                const payload = await response.json();
-
-                if (payload.success) {
-                    renderNhlFeedStatus(payload);
-                    showNotification(payload.message, enabled ? 'success' : 'info');
-                } else {
-                    nhlFeedToggle.checked = !enabled;
-                    showNotification(payload.error || 'NHL API feed update failed', 'error');
-                }
-            } catch (error) {
-                nhlFeedToggle.checked = !enabled;
-                nhlFeedStatus.textContent = 'NHL API feed status unavailable';
-                showNotification('NHL API feed connection error', 'error');
-                console.error('NHL feed update failed:', error);
-            } finally {
-                nhlFeedToggle.disabled = false;
-            }
-        }
-
-        document.querySelectorAll('[data-action]').forEach((button) => {
+document.querySelectorAll('[data-action]').forEach((button) => {
             button.addEventListener('click', async (event) => {
                 event.preventDefault();
 
@@ -319,20 +230,11 @@
                 }
             });
         });
-
-        if (nhlFeedToggle) {
-            nhlFeedToggle.addEventListener('change', () => {
-                setNhlFeedEnabled(nhlFeedToggle.checked);
-            });
-        }
-
-        // Update status on page load
+// Update status on page load
         updateStatus();
-        updateNhlFeedStatus();
 
         // Update status every 5 seconds
         setInterval(updateStatus, 5000);
-        setInterval(updateNhlFeedStatus, 5000);
     </script>
 
     <style>

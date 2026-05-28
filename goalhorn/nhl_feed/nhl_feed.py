@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Automated NHL feed worker for the Blues goal light."""
+"""Automated NHL feed worker for the goal light."""
 
 import datetime as dt
 import json
@@ -15,8 +15,8 @@ try:
 except ImportError:
     fcntl = None
 
-TEAM_ABBREV = "STL"
-SCHEDULE_URL = "https://api-web.nhle.com/v1/club-schedule-season/STL/now"
+DEFAULT_TEAM_ABBREV = "STL"
+SCHEDULE_URL = "https://api-web.nhle.com/v1/club-schedule-season/{team}/now"
 PLAY_BY_PLAY_URL = "https://api-web.nhle.com/v1/gamecenter/{game_id}/play-by-play"
 
 SCHEDULE_CHECK_SECONDS = 6 * 60 * 60
@@ -26,6 +26,7 @@ LIVE_POLL_SECONDS = 3
 HTTP_TIMEOUT_SECONDS = 8
 
 ENABLED_FILE = "/tmp/bluesgoal_nhl_feed_enabled"
+SETTINGS_FILE = "/tmp/bluesgoal_nhl_feed_settings.json"
 STATUS_FILE = "/tmp/bluesgoal_nhl_feed_status.json"
 STATE_FILE = "/tmp/bluesgoal_nhl_feed_state.json"
 PROCESS_LOCK_FILE = "/tmp/bluesgoal_nhl_feed.lock"
@@ -35,6 +36,9 @@ WINTER_CLASSIC_SCRIPT = "/var/www/html/goalhorn/bluesgoal_winterclassic/bluesgoa
 LOG_ACTIVITY_SCRIPT = "/var/www/html/log_activity.py"
 LIVE_STATES = {"LIVE", "CRIT"}
 FINISHED_STATES = {"FINAL", "OFF"}
+VALID_TEAMS = {
+    "ANA", "BOS", "BUF", "CAR", "CBJ", "CGY", "CHI", "COL", "DAL", "DET", "EDM", "FLA", "LAK", "MIN", "MTL", "NJD", "NSH", "NYI", "NYR", "OTT", "PHI", "PIT", "SEA", "SJS", "STL", "TBL", "TOR", "UTA", "VAN", "VGK", "WPG", "WSH"
+}
 
 
 def utc_now():
@@ -57,12 +61,6 @@ def read_enabled():
         return False
 
 
-def wait_enabled(seconds):
-    end_at = time.monotonic() + max(0, seconds)
-    while read_enabled() and time.monotonic() < end_at:
-        time.sleep(min(15, end_at - time.monotonic()))
-
-
 def read_json(path, default):
     try:
         with open(path, "r", encoding="utf-8") as handle:
@@ -76,6 +74,22 @@ def write_json(path, payload):
     with open(tmp_path, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
     os.replace(tmp_path, path)
+
+
+def read_settings():
+    settings = read_json(SETTINGS_FILE, {})
+    team = str(settings.get("source_team", DEFAULT_TEAM_ABBREV)).upper()
+    if team not in VALID_TEAMS:
+        team = DEFAULT_TEAM_ABBREV
+    return {"source_team": team}
+
+
+def wait_enabled(seconds, source_team=None):
+    end_at = time.monotonic() + max(0, seconds)
+    while read_enabled() and time.monotonic() < end_at:
+        if source_team and read_settings()["source_team"] != source_team:
+            return
+        time.sleep(min(15, end_at - time.monotonic()))
 
 
 def update_status(**updates):
@@ -109,10 +123,10 @@ def team_abbrev(team):
     return team.get("triCode", "") if isinstance(team, dict) else ""
 
 
-def blues_team_id(game):
+def monitored_team_id(game, source_team):
     for side in ("awayTeam", "homeTeam"):
         team = game.get(side, {})
-        if team_abbrev(team) == TEAM_ABBREV:
+        if team_abbrev(team) == source_team:
             return team.get("id")
     return None
 
@@ -123,11 +137,22 @@ def score_line(game):
     return f"{team_abbrev(away)} {away.get('score', 0)}, {team_abbrev(home)} {home.get('score', 0)}"
 
 
-def next_blues_game(schedule):
+def has_game_today(schedule, source_team):
+    today = utc_now().date()
+    for game in schedule.get("games", []):
+        if monitored_team_id(game, source_team) is None:
+            continue
+        start_time = parse_utc(game["startTimeUTC"])
+        if start_time.date() == today and game.get("gameState", "") not in FINISHED_STATES:
+            return True
+    return False
+
+
+def next_team_game(schedule, source_team):
     now = utc_now()
     candidates = []
     for game in schedule.get("games", []):
-        if blues_team_id(game) is None:
+        if monitored_team_id(game, source_team) is None:
             continue
         state = game.get("gameState", "")
         if state in FINISHED_STATES:
@@ -158,10 +183,10 @@ def release_lock(handle):
         handle.close()
 
 
-def trigger_winter_classic(game_id, event_id):
-    message = f"NHL API detected Blues goal: game {game_id}, event {event_id}"
+def trigger_winter_classic(source_team, game_id, event_id):
+    message = f"NHL API detected {source_team} goal: game {game_id}, event {event_id}"
     log_activity("nhl_api_goal", message)
-    update_status(message="Blues goal detected; triggering Winter Classic", last_trigger=message, last_trigger_at=iso_now())
+    update_status(message="Goal detected; triggering Winter Classic", last_trigger=message, last_trigger_at=iso_now())
 
     action_lock = acquire_lock(ACTION_LOCK_FILE, blocking=True)
     try:
@@ -185,13 +210,13 @@ def trigger_winter_classic(game_id, event_id):
         log_activity("nhl_api_goal_error", output or f"Exit code {result.returncode}")
 
 
-def poll_game(game):
+def poll_game(game, source_team):
     game_id = str(game["id"])
     state = read_json(STATE_FILE, {})
     seen_goal_events = set(state.get("seen_goal_events", {}).get(game_id, []))
     baseline_ready = bool(state.get("baseline_ready", {}).get(game_id))
 
-    while read_enabled():
+    while read_enabled() and read_settings()["source_team"] == source_team:
         data = fetch_json(PLAY_BY_PLAY_URL.format(game_id=game_id))
         game_state = data.get("gameState", game.get("gameState", ""))
         current_game = {
@@ -199,17 +224,24 @@ def poll_game(game):
             "awayTeam": data.get("awayTeam", game.get("awayTeam", {})),
             "homeTeam": data.get("homeTeam", game.get("homeTeam", {})),
         }
-        stl_id = blues_team_id(current_game)
+        source_team_id = monitored_team_id(current_game, source_team)
+        current_poll_seconds = LIVE_POLL_SECONDS if game_state in LIVE_STATES else PRE_GAME_POLL_SECONDS
 
         update_status(
             enabled=True,
             running=True,
+            source_team=source_team,
             mode="live" if game_state in LIVE_STATES else "pregame",
             message="Watching live play-by-play" if game_state in LIVE_STATES else "Waiting for puck drop",
             watched_game_id=game_id,
             game_state=game_state,
             game=score_line(current_game),
+            current_poll_seconds=current_poll_seconds,
             live_poll_seconds=LIVE_POLL_SECONDS,
+            pregame_poll_seconds=PRE_GAME_POLL_SECONDS,
+            schedule_poll_seconds=SCHEDULE_CHECK_SECONDS,
+            game_today=True,
+            triggers_expected=game_state not in FINISHED_STATES,
             last_poll_at=iso_now(),
         )
 
@@ -223,23 +255,23 @@ def poll_game(game):
         for play in data.get("plays", []):
             details = play.get("details", {})
             event_id = str(play.get("eventId"))
-            if play.get("typeDescKey") == "goal" and details.get("eventOwnerTeamId") == stl_id:
+            if play.get("typeDescKey") == "goal" and details.get("eventOwnerTeamId") == source_team_id:
                 goal_events.append(event_id)
 
         if not baseline_ready:
             seen_goal_events.update(goal_events)
             baseline_ready = True
-            update_status(message="Goal baseline set; watching for new Blues goals")
+            update_status(message="Goal baseline set; watching for new goals")
         elif game_state in LIVE_STATES:
             for event_id in goal_events:
                 if event_id not in seen_goal_events:
                     seen_goal_events.add(event_id)
-                    trigger_winter_classic(game_id, event_id)
+                    trigger_winter_classic(source_team, game_id, event_id)
 
         state.setdefault("seen_goal_events", {})[game_id] = sorted(seen_goal_events)
         state.setdefault("baseline_ready", {})[game_id] = baseline_ready
         write_json(STATE_FILE, state)
-        wait_enabled(LIVE_POLL_SECONDS if game_state in LIVE_STATES else PRE_GAME_POLL_SECONDS)
+        wait_enabled(current_poll_seconds, source_team)
 
 
 def main():
@@ -251,19 +283,27 @@ def main():
     try:
         update_status(enabled=read_enabled(), running=True, mode="schedule", message="NHL feed worker started")
         while read_enabled():
+            settings = read_settings()
+            source_team = settings["source_team"]
             try:
-                schedule = fetch_json(SCHEDULE_URL)
-                game = next_blues_game(schedule)
+                schedule = fetch_json(SCHEDULE_URL.format(team=source_team))
+                game = next_team_game(schedule, source_team)
+                game_today = has_game_today(schedule, source_team)
                 if not game:
                     update_status(
                         enabled=True,
                         running=True,
+                        source_team=source_team,
                         mode="schedule",
-                        message="No upcoming Blues game found; checking schedule every 6 hours",
+                        message=f"No upcoming {source_team} game found; checking schedule every 6 hours",
                         schedule_poll_seconds=SCHEDULE_CHECK_SECONDS,
+                        current_poll_seconds=SCHEDULE_CHECK_SECONDS,
+                        game_today=game_today,
+                        triggers_expected=False,
+                        watched_game_id=None,
                         last_schedule_check_at=iso_now(),
                     )
-                    wait_enabled(SCHEDULE_CHECK_SECONDS)
+                    wait_enabled(SCHEDULE_CHECK_SECONDS, source_team)
                     continue
 
                 start_time = parse_utc(game["startTimeUTC"])
@@ -272,23 +312,27 @@ def main():
                     update_status(
                         enabled=True,
                         running=True,
+                        source_team=source_team,
                         mode="schedule",
-                        message="Blues game scheduled; sleeping until pregame watch",
+                        message=f"{source_team} game scheduled; sleeping until pregame watch",
                         watched_game_id=str(game["id"]),
                         next_game_start_utc=game["startTimeUTC"],
                         schedule_poll_seconds=SCHEDULE_CHECK_SECONDS,
+                        current_poll_seconds=min(SCHEDULE_CHECK_SECONDS, int(seconds_until_wake)),
+                        game_today=game_today,
+                        triggers_expected=game_today,
                         last_schedule_check_at=iso_now(),
                     )
-                    wait_enabled(min(SCHEDULE_CHECK_SECONDS, seconds_until_wake))
+                    wait_enabled(min(SCHEDULE_CHECK_SECONDS, seconds_until_wake), source_team)
                     continue
 
-                poll_game(game)
+                poll_game(game, source_team)
             except (urllib.error.URLError, TimeoutError, OSError, KeyError, ValueError, json.JSONDecodeError) as error:
-                update_status(enabled=True, running=True, message="NHL API unavailable", last_error=str(error))
+                update_status(enabled=True, running=True, source_team=source_team, message="NHL API unavailable", last_error=str(error))
                 log_activity("nhl_api_error", str(error))
-                wait_enabled(PRE_GAME_POLL_SECONDS)
+                wait_enabled(PRE_GAME_POLL_SECONDS, source_team)
 
-        update_status(enabled=False, running=False, mode="manual", message="Manual buttons only")
+        update_status(enabled=False, running=False, mode="manual", message="Manual buttons only", triggers_expected=False)
         return 0
     finally:
         release_lock(process_lock)

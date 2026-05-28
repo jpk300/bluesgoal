@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Blues Goal Settings</title>
+    <link rel="stylesheet" href="stylesheets/main.css">
+    <link rel="shortcut icon" type="image/x-icon" href="favicon.ico">
+</head>
+<body>
+    <main class="settings-page" aria-label="Blues Goal settings">
+        <header class="settings-header">
+            <a class="settings-link" href="index.html">Back</a>
+            <h1>Settings</h1>
+        </header>
+
+        <section class="settings-panel" aria-label="NHL API automation">
+            <div class="settings-row settings-row--split">
+                <div>
+                    <h2>NHL API Feed</h2>
+                    <p data-feed-status>Manual buttons only</p>
+                </div>
+                <label class="feed-toggle">
+                    <input class="feed-toggle__input" type="checkbox" data-feed-toggle>
+                    <span class="feed-toggle__track" aria-hidden="true"></span>
+                    <span class="feed-toggle__label">Automated feed</span>
+                </label>
+            </div>
+
+            <label class="settings-field">
+                <span>Trigger source team</span>
+                <select data-team-select></select>
+            </label>
+
+            <dl class="settings-status-grid">
+                <div>
+                    <dt>Polling frequency</dt>
+                    <dd data-current-poll>Checking status...</dd>
+                </div>
+                <div>
+                    <dt>Game today</dt>
+                    <dd data-game-today>Checking status...</dd>
+                </div>
+                <div>
+                    <dt>Automated triggers</dt>
+                    <dd data-triggers-expected>Checking status...</dd>
+                </div>
+                <div>
+                    <dt>Watched game</dt>
+                    <dd data-watched-game>None</dd>
+                </div>
+            </dl>
+        </section>
+    </main>
+
+    <script>
+        const NHL_FEED_STATUS_URL = 'goalhorn/_nhl_feed.php';
+        const TEAM_LABELS = {
+            ANA: 'Anaheim Ducks', BOS: 'Boston Bruins', BUF: 'Buffalo Sabres', CAR: 'Carolina Hurricanes',
+            CBJ: 'Columbus Blue Jackets', CGY: 'Calgary Flames', CHI: 'Chicago Blackhawks', COL: 'Colorado Avalanche',
+            DAL: 'Dallas Stars', DET: 'Detroit Red Wings', EDM: 'Edmonton Oilers', FLA: 'Florida Panthers',
+            LAK: 'Los Angeles Kings', MIN: 'Minnesota Wild', MTL: 'Montreal Canadiens', NJD: 'New Jersey Devils',
+            NSH: 'Nashville Predators', NYI: 'New York Islanders', NYR: 'New York Rangers', OTT: 'Ottawa Senators',
+            PHI: 'Philadelphia Flyers', PIT: 'Pittsburgh Penguins', SEA: 'Seattle Kraken', SJS: 'San Jose Sharks',
+            STL: 'St. Louis Blues', TBL: 'Tampa Bay Lightning', TOR: 'Toronto Maple Leafs', UTA: 'Utah Mammoth',
+            VAN: 'Vancouver Canucks', VGK: 'Vegas Golden Knights', WPG: 'Winnipeg Jets', WSH: 'Washington Capitals'
+        };
+
+        const feedToggle = document.querySelector('[data-feed-toggle]');
+        const feedStatus = document.querySelector('[data-feed-status]');
+        const teamSelect = document.querySelector('[data-team-select]');
+        const currentPoll = document.querySelector('[data-current-poll]');
+        const gameToday = document.querySelector('[data-game-today]');
+        const triggersExpected = document.querySelector('[data-triggers-expected]');
+        const watchedGame = document.querySelector('[data-watched-game]');
+
+        function formatSeconds(seconds) {
+            const value = Number(seconds || 0);
+            if (!value) {
+                return 'Waiting for worker status';
+            }
+            if (value >= 3600) {
+                return `${Math.round(value / 3600)} hours`;
+            }
+            if (value >= 60) {
+                return `${Math.round(value / 60)} minutes`;
+            }
+            return `${value} seconds`;
+        }
+
+        function renderStatus(payload) {
+            const data = payload.data || {};
+            const settings = payload.settings || {};
+            const teams = payload.teams || Object.keys(TEAM_LABELS);
+
+            if (!teamSelect.options.length) {
+                teams.forEach((team) => {
+                    const option = document.createElement('option');
+                    option.value = team;
+                    option.textContent = `${team} - ${TEAM_LABELS[team] || team}`;
+                    teamSelect.appendChild(option);
+                });
+            }
+
+            teamSelect.value = settings.source_team || data.source_team || 'STL';
+            feedToggle.checked = Boolean(payload.enabled);
+            feedStatus.textContent = data.message || payload.message || 'Manual buttons only';
+            currentPoll.textContent = formatSeconds(data.current_poll_seconds || data.schedule_poll_seconds);
+            gameToday.textContent = data.game_today ? 'Yes' : 'No';
+            triggersExpected.textContent = data.triggers_expected ? 'Expected if this team scores' : 'Not currently expected';
+            watchedGame.textContent = data.game || data.watched_game_id || 'None';
+        }
+
+        async function fetchSettings() {
+            const response = await fetch(NHL_FEED_STATUS_URL, {
+                cache: 'no-store',
+                credentials: 'same-origin'
+            });
+            const payload = await response.json();
+            if (payload.success) {
+                renderStatus(payload);
+            }
+        }
+
+        async function saveSettings(changes) {
+            feedToggle.disabled = true;
+            teamSelect.disabled = true;
+            try {
+                const response = await fetch(NHL_FEED_STATUS_URL, {
+                    method: 'POST',
+                    cache: 'no-store',
+                    credentials: 'same-origin',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(changes)
+                });
+                const payload = await response.json();
+                if (payload.success) {
+                    renderStatus(payload);
+                } else {
+                    feedStatus.textContent = payload.error || 'Settings update failed';
+                    await fetchSettings();
+                }
+            } catch (error) {
+                feedStatus.textContent = 'NHL API feed settings unavailable';
+                await fetchSettings();
+            } finally {
+                feedToggle.disabled = false;
+                teamSelect.disabled = false;
+            }
+        }
+
+        feedToggle.addEventListener('change', () => {
+            saveSettings({ enabled: feedToggle.checked });
+        });
+
+        teamSelect.addEventListener('change', () => {
+            saveSettings({ source_team: teamSelect.value });
+        });
+
+        fetchSettings();
+        setInterval(fetchSettings, 5000);
+    </script>
+</body>
+</html>
