@@ -301,6 +301,7 @@ def poll_game(game, source_team):
             game_today=True,
             triggers_expected=game_state not in FINISHED_STATES,
             last_poll_at=iso_now(),
+            last_error=None,
         )
 
         if game_state in FINISHED_STATES:
@@ -349,10 +350,21 @@ def main():
         return 0
 
     try:
-        update_status(enabled=read_enabled(), running=True, mode="schedule", message="NHL feed worker started")
         while read_enabled():
             settings = read_settings()
             source_team = settings["source_team"]
+            update_status(
+                enabled=True,
+                running=True,
+                source_team=source_team,
+                mode="schedule",
+                message="Checking NHL schedule",
+                current_poll_seconds=PRE_GAME_POLL_SECONDS,
+                schedule_poll_seconds=SCHEDULE_CHECK_SECONDS,
+                game_today=None,
+                triggers_expected=None,
+                last_error=None,
+            )
             try:
                 schedule = fetch_json(SCHEDULE_URL.format(team=source_team))
                 game = next_team_game(schedule, source_team)
@@ -370,6 +382,7 @@ def main():
                         triggers_expected=False,
                         watched_game_id=None,
                         last_schedule_check_at=iso_now(),
+                        last_error=None,
                     )
                     wait_enabled(SCHEDULE_CHECK_SECONDS, source_team)
                     continue
@@ -390,13 +403,22 @@ def main():
                         game_today=game_today,
                         triggers_expected=game_today,
                         last_schedule_check_at=iso_now(),
+                        last_error=None,
                     )
                     wait_enabled(min(SCHEDULE_CHECK_SECONDS, seconds_until_wake), source_team)
                     continue
 
                 poll_game(game, source_team)
             except (urllib.error.URLError, TimeoutError, OSError, KeyError, ValueError, json.JSONDecodeError) as error:
-                update_status(enabled=True, running=True, source_team=source_team, message="NHL API unavailable", last_error=str(error))
+                update_status(
+                    enabled=True,
+                    running=True,
+                    source_team=source_team,
+                    mode="schedule",
+                    message="NHL API unavailable",
+                    current_poll_seconds=PRE_GAME_POLL_SECONDS,
+                    last_error=str(error),
+                )
                 log_activity("nhl_api_error", str(error))
                 wait_enabled(PRE_GAME_POLL_SECONDS, source_team)
 
