@@ -426,3 +426,16 @@ Personal project - feel free to adapt for your own use!
 - GPIO control requires `python3-rpi.gpio` system package for proper hardware communication
 - Images and audio files are excluded from git (see `.gitignore`)
 - Activity logs are stored as JSON for easy programmatic access
+
+> Note: On Raspberry Pi OS / Apache installs that use systemd `PrivateTmp`, Apache/PHP and worker processes may write `/tmp/bluesgoal_nhl_feed_status.json` and `/tmp/bluesgoal_nhl_feed.log` inside Apache's private tmp directory instead of the shell's `/tmp`. If `/tmp/bluesgoal_nhl_feed_status.json` is missing but the endpoint returns `data`, locate the private files with:
+>
+> ```bash
+> sudo find /tmp -path '*apache2.service*/tmp/bluesgoal_nhl_feed_status.json' -print -exec cat {} \; | jq .
+> sudo find /tmp -path '*apache2.service*/tmp/bluesgoal_nhl_feed.log' -print -exec tail -n 80 {} \;
+> ```
+>
+> The most reliable status check is:
+>
+> ```bash
+> curl -s http://localhost/goalhorn/_nhl_feed.php | jq .
+> ```
