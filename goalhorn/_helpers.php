@@ -3,12 +3,23 @@
  * Shared helpers for goalhorn JSON endpoints.
  */
 
+const BLUESGOAL_BASE_PATH = '/var/www/html';
+const BLUESGOAL_RUNTIME_DIR = BLUESGOAL_BASE_PATH . '/runtime';
+
 function goalhorn_json_response($statusCode, $payload) {
     http_response_code($statusCode);
     header('Content-Type: application/json');
     header('Cache-Control: no-store');
     echo json_encode($payload);
     exit;
+}
+
+function goalhorn_ensure_runtime_dir() {
+    if (!is_dir(BLUESGOAL_RUNTIME_DIR)) {
+        @mkdir(BLUESGOAL_RUNTIME_DIR, 0775, true);
+    }
+
+    return is_dir(BLUESGOAL_RUNTIME_DIR) && is_writable(BLUESGOAL_RUNTIME_DIR);
 }
 
 function goalhorn_log_activity($action, $message) {
@@ -31,7 +42,8 @@ function goalhorn_run_python_action($action, $message, $scriptPath, $useLock = t
 
     $lockHandle = null;
     if ($useLock) {
-        $lockHandle = fopen('/tmp/bluesgoal_action.lock', 'c');
+        goalhorn_ensure_runtime_dir();
+        $lockHandle = fopen(BLUESGOAL_RUNTIME_DIR . '/bluesgoal_action.lock', 'c');
         if (!$lockHandle) {
             goalhorn_json_response(500, [
                 'success' => false,

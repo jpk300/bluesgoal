@@ -1,11 +1,21 @@
 <?php
 require_once __DIR__ . '/_helpers.php';
 
-const NHL_FEED_ENABLED_FILE = '/tmp/bluesgoal_nhl_feed_enabled';
-const NHL_FEED_SETTINGS_FILE = '/tmp/bluesgoal_nhl_feed_settings.json';
-const NHL_FEED_STATUS_FILE = '/tmp/bluesgoal_nhl_feed_status.json';
-const NHL_FEED_STATE_FILE = '/tmp/bluesgoal_nhl_feed_state.json';
-const NHL_FEED_LOG = '/tmp/bluesgoal_nhl_feed.log';
+const NHL_FEED_ENABLED_FILE = BLUESGOAL_RUNTIME_DIR . '/nhl_feed_enabled';
+const NHL_FEED_SETTINGS_FILE = BLUESGOAL_RUNTIME_DIR . '/nhl_feed_settings.json';
+const NHL_FEED_STATUS_FILE = BLUESGOAL_RUNTIME_DIR . '/nhl_feed_status.json';
+const NHL_FEED_STATE_FILE = BLUESGOAL_RUNTIME_DIR . '/nhl_feed_state.json';
+const NHL_FEED_LOG = BLUESGOAL_RUNTIME_DIR . '/nhl_feed.log';
+
+function nhl_feed_ensure_runtime_dir() {
+    if (!goalhorn_ensure_runtime_dir()) {
+        goalhorn_json_response(500, [
+            'success' => false,
+            'error' => 'Runtime directory is not writable: ' . BLUESGOAL_RUNTIME_DIR,
+            'timestamp' => date('Y-m-d H:i:s')
+        ]);
+    }
+}
 
 function nhl_feed_valid_teams() {
     return ['ANA','BOS','BUF','CAR','CBJ','CGY','CHI','COL','DAL','DET','EDM','FLA','LAK','MIN','MTL','NJD','NSH','NYI','NYR','OTT','PHI','PIT','SEA','SJS','STL','TBL','TOR','UTA','VAN','VGK','WPG','WSH'];
@@ -179,6 +189,8 @@ function nhl_feed_payload($message = null) {
         'timestamp' => date('Y-m-d H:i:s')
     ];
 }
+
+nhl_feed_ensure_runtime_dir();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (nhl_feed_is_enabled() && !nhl_feed_is_running()) {

@@ -26,16 +26,17 @@ PRE_GAME_POLL_SECONDS = 30
 LIVE_POLL_SECONDS = 3
 HTTP_TIMEOUT_SECONDS = 8
 
-ENABLED_FILE = "/tmp/bluesgoal_nhl_feed_enabled"
-SETTINGS_FILE = "/tmp/bluesgoal_nhl_feed_settings.json"
-STATUS_FILE = "/tmp/bluesgoal_nhl_feed_status.json"
-STATE_FILE = "/tmp/bluesgoal_nhl_feed_state.json"
-ACTION_LOCK_FILE = "/tmp/bluesgoal_action.lock"
-
 NHL_FEED_DIR = Path(__file__).resolve().parent
 GOALHORN_DIR = NHL_FEED_DIR.parent
 REPO_ROOT = GOALHORN_DIR.parent
-PROCESS_LOCK_FILE = str(NHL_FEED_DIR / "bluesgoal_nhl_feed.lock")
+RUNTIME_DIR = REPO_ROOT / "runtime"
+
+ENABLED_FILE = str(RUNTIME_DIR / "nhl_feed_enabled")
+SETTINGS_FILE = str(RUNTIME_DIR / "nhl_feed_settings.json")
+STATUS_FILE = str(RUNTIME_DIR / "nhl_feed_status.json")
+STATE_FILE = str(RUNTIME_DIR / "nhl_feed_state.json")
+ACTION_LOCK_FILE = str(RUNTIME_DIR / "bluesgoal_action.lock")
+PROCESS_LOCK_FILE = str(RUNTIME_DIR / "nhl_feed_worker.lock")
 WINTER_CLASSIC_SCRIPT = str(GOALHORN_DIR / "bluesgoal_winterclassic" / "bluesgoal_winterclassic_master.py")
 LOG_ACTIVITY_SCRIPT = str(REPO_ROOT / "log_activity.py")
 LIVE_STATES = {"LIVE", "CRIT"}
@@ -71,6 +72,10 @@ def read_json(path, default):
             return json.load(handle)
     except (FileNotFoundError, json.JSONDecodeError):
         return default
+
+
+def ensure_runtime_dir():
+    RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def write_json(path, payload):
@@ -337,6 +342,8 @@ def poll_game(game, source_team):
 
 
 def main():
+    ensure_runtime_dir()
+
     try:
         process_lock = acquire_lock(PROCESS_LOCK_FILE, blocking=False)
     except OSError as error:

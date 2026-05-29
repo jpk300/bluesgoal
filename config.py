@@ -13,6 +13,7 @@ import os
 BASE_PATH = '/var/www/html'
 MP3_DIR = os.path.join(BASE_PATH, 'mp3')
 LOG_DIR = os.path.join(BASE_PATH, 'logs')
+RUNTIME_DIR = os.path.join(BASE_PATH, 'runtime')
 HISTORY_FILE = os.path.join(LOG_DIR, 'history.log')
 ERROR_LOG_FILE = os.path.join(LOG_DIR, 'error.log')
 
@@ -67,10 +68,9 @@ LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 # ============================================================================
 # Helper functions to ensure directories exist
 # ============================================================================
-def ensure_log_dir():
-    """Create log directory if it doesn't exist."""
+def ensure_app_dirs():
+    """Create writable application directories if they don't exist."""
     os.makedirs(LOG_DIR, exist_ok=True)
-    # Make sure www-data can write to it
-    os.system(f'chmod 755 {LOG_DIR}')
+    os.makedirs(RUNTIME_DIR, exist_ok=True)
 
-ensure_log_dir()
+ensure_app_dirs()

@@ -6,6 +6,12 @@
 #Audio
 *.mp3
 
+# Runtime state and logs
+runtime/*
+!runtime/.gitkeep
+logs/*
+!logs/.gitkeep
+
 #OldFiles
 *.v1
 *.v2

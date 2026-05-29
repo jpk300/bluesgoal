@@ -28,9 +28,10 @@ git checkout v2.1.0
 sudo apt-get install python3 python3-pip apache2 mpg321 php python3-rpi.gpio
 sudo pip3 install alsaaudio
 
-# Create logs directory
-sudo mkdir -p /var/www/html/logs
-sudo chown www-data:www-data /var/www/html/logs
+# Create writable app directories
+sudo mkdir -p /var/www/html/logs /var/www/html/runtime
+sudo chown -R www-data:www-data /var/www/html/logs /var/www/html/runtime
+sudo chmod 775 /var/www/html/logs /var/www/html/runtime
 
 # Access the app
 http://bluesgoal.home.local
@@ -105,13 +106,13 @@ sudo systemctl enable apache2
 sudo systemctl status apache2
 ```
 
-### 3. Create Log Directory
+### 3. Create Writable App Directories
 
 ```bash
-# Create logs directory for activity tracking
-sudo mkdir -p /var/www/html/logs
-sudo chown www-data:www-data /var/www/html/logs
-sudo chmod 755 /var/www/html/logs
+# Create logs and persistent runtime state directories
+sudo mkdir -p /var/www/html/logs /var/www/html/runtime
+sudo chown -R www-data:www-data /var/www/html/logs /var/www/html/runtime
+sudo chmod 775 /var/www/html/logs /var/www/html/runtime
 ```
 
 ### 4. Add MP3 Audio Files
@@ -229,6 +230,8 @@ bluesgoal/
 │   ├── history.log          # JSON-formatted activity log
 │   └── error.log            # Application errors
 │
+├── runtime/                  # Persistent NHL feed state, locks, and worker logs
+│
 └── testscripts/              # Testing utilities
     ├── test_gpio_alternating.py   # Test alternating GPIO pattern
     ├── test_gpio_simultaneous.py  # Test simultaneous GPIO pattern
@@ -260,7 +263,7 @@ When enabled, a background Python worker continuously polls the NHL API:
 2. **Polls NHL API** for Blues game status and goal events
 3. **Automatically triggers** goal horn when goal is detected
 4. **Logs events** to activity history
-5. **Reports status** via `/tmp/bluesgoal_nhl_feed_status.json`
+5. **Reports status** via `/var/www/html/runtime/nhl_feed_status.json`
 
 ## Configuration
 
@@ -271,6 +274,7 @@ Edit `config.py` to customize the application:
 BASE_PATH = '/var/www/html'
 MP3_DIR = '/var/www/html/mp3'
 LOG_DIR = '/var/www/html/logs'
+RUNTIME_DIR = '/var/www/html/runtime'
 
 # GPIO Settings
 GPIO_MODE = 'BOARD'           # Pin numbering mode
@@ -468,16 +472,16 @@ When the settings page shows `Waiting for worker status`, `Starting worker`, or 
 curl -s http://bluesgoal.home.local/goalhorn/_nhl_feed.php | jq .
 
 # 2. Inspect the worker status file
-sudo cat /tmp/bluesgoal_nhl_feed_status.json | jq .
+sudo cat /var/www/html/runtime/nhl_feed_status.json | jq .
 
 # 3. Verify the feed is enabled (1 = enabled)
-sudo cat /tmp/bluesgoal_nhl_feed_enabled
+sudo cat /var/www/html/runtime/nhl_feed_enabled
 
 # 4. Confirm the worker process is running
 pgrep -af 'goalhorn/nhl_feed/nhl_feed.py'
 
 # 5. Watch worker startup logs
-sudo tail -f /tmp/bluesgoal_nhl_feed.log
+sudo tail -f /var/www/html/runtime/nhl_feed.log
 
 # 6. Watch NHL-specific activity entries
 sudo tail -f /var/www/html/logs/history.log | grep nhl
@@ -494,15 +498,7 @@ sudo -u www-data sudo -n python3 -c 'print("sudo ok")'
 
 If sudoers verification fails, revisit the sudoers setup and ensure `www-data` has passwordless access to `/usr/bin/python3`. After fixing, toggle the NHL API feed off and back on in settings.
 
-**Note on systemd PrivateTmp**: On Raspberry Pi OS with systemd `PrivateTmp` enabled, Apache/PHP may write temporary files to isolated `/tmp` directories:
-
-```bash
-# Find status file in isolated namespace
-sudo find /tmp -path '*apache2.service*/tmp/bluesgoal_nhl_feed_status.json' -print -exec cat {} \; | jq .
-
-# Find worker logs in isolated namespace
-sudo find /tmp -path '*apache2.service*/tmp/bluesgoal_nhl_feed.log' -print -exec tail -n 80 {} \;
-```
+**Note on systemd PrivateTmp**: NHL feed state is stored in `/var/www/html/runtime`, not `/tmp`, so Apache `PrivateTmp` isolation should not hide the worker status or logs.
 
 The most reliable status check is always:
 ```bash
