@@ -533,14 +533,10 @@ curl -s http://localhost/goalhorn/_nhl_feed.php | jq .
 
 ## Future Enhancements
 
-- Support for additional audio formats (OGG, WAV)
-- Customizable strobe patterns and durations
 - Web-based audio file uploader
 - Mobile app for remote control
 - Statistics dashboard showing most-played sounds
-- Scheduled/timed triggers
-- Multiple zone support (separate light controls)
-- Voice control integration
+
 
 ## Notes
 
