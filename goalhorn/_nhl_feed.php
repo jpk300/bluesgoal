@@ -50,6 +50,7 @@ function nhl_feed_script_path() {
 }
 
 function nhl_feed_is_running() {
+    $script = nhl_feed_script_path();
     $output = [];
     $exitCode = 1;
     exec('pgrep -f ' . escapeshellarg(nhl_feed_script_path()), $output, $exitCode);
