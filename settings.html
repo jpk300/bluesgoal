@@ -74,9 +74,12 @@
         const triggersExpected = document.querySelector('[data-triggers-expected]');
         const watchedGame = document.querySelector('[data-watched-game]');
 
-        function formatSeconds(seconds) {
+        function formatSeconds(seconds, payload) {
             const value = Number(seconds || 0);
             if (!value) {
+                if (payload.enabled && !payload.running) {
+                    return payload.data && payload.data.last_error ? 'Worker unavailable' : 'Starting worker';
+                }
                 return 'Waiting for worker status';
             }
             if (value >= 3600) {
@@ -105,9 +108,9 @@
             teamSelect.value = settings.source_team || data.source_team || 'STL';
             feedToggle.checked = Boolean(payload.enabled);
             feedStatus.textContent = data.message || payload.message || 'Manual buttons only';
-            currentPoll.textContent = formatSeconds(data.current_poll_seconds || data.schedule_poll_seconds);
-            gameToday.textContent = data.game_today ? 'Yes' : 'No';
-            triggersExpected.textContent = data.triggers_expected ? 'Expected if this team scores' : 'Not currently expected';
+            currentPoll.textContent = formatSeconds(data.current_poll_seconds || data.schedule_poll_seconds, payload);
+            gameToday.textContent = typeof data.game_today === 'boolean' ? (data.game_today ? 'Yes' : 'No') : 'Waiting for worker status';
+            triggersExpected.textContent = typeof data.triggers_expected === 'boolean' ? (data.triggers_expected ? 'Expected if this team scores' : 'Not currently expected') : 'Waiting for worker status';
             watchedGame.textContent = data.game || data.watched_game_id || 'None';
         }
 

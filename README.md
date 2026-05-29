@@ -337,6 +337,44 @@ python3 testscripts/test_music.py
 - Verify correct audio card: `arecord -l` or `cat /proc/asound/cards`
 - Test volume control manually: `amixer -c 1 set PCM 5dB+`
 
+### NHL Feed Polling Errors
+
+When the settings page shows `Waiting for worker status`, `Starting worker`, or `Worker unavailable`, check these in order:
+
+```bash
+# 1. Read the feed endpoint exactly as the browser sees it.
+curl -s http://bluesgoal.home.local/goalhorn/_nhl_feed.php | jq .
+
+# 2. Inspect the worker status file written by PHP and the Python worker.
+sudo cat /tmp/bluesgoal_nhl_feed_status.json | jq .
+
+# 3. Confirm whether the feed is enabled. A value of 1 means enabled.
+sudo cat /tmp/bluesgoal_nhl_feed_enabled
+
+# 4. Confirm whether the worker process is running.
+pgrep -af 'goalhorn/nhl_feed/nhl_feed.py'
+
+# 5. Watch worker startup stderr/stdout captured from nohup.
+sudo tail -f /tmp/bluesgoal_nhl_feed.log
+
+# 6. Watch NHL-specific activity entries such as nhl_api_error and nhl_api_goal.
+sudo tail -f /var/www/html/logs/history.log
+
+# 7. Watch app-level logger errors.
+sudo tail -f /var/www/html/logs/error.log
+
+# 8. Check Apache/PHP errors if the endpoint itself is failing.
+sudo tail -f /var/log/apache2/error.log
+```
+
+The most useful fields in `/tmp/bluesgoal_nhl_feed_status.json` are `message`, `last_error`, `running`, `source_team`, `mode`, `last_schedule_check_at`, `last_poll_at`, `current_poll_seconds`, `game_today`, `triggers_expected`, and `watched_game_id`. If `last_error` mentions sudo or a password prompt, confirm the Apache user can launch Python without interaction:
+
+```bash
+sudo -u www-data sudo -n python3 -c 'print("sudo ok")'
+```
+
+If that fails, revisit the sudoers setup and make sure `www-data` has passwordless access to `/usr/bin/python3`. After fixing sudoers, toggle the NHL API feed off and back on, or request the status endpoint again, to trigger a worker restart.
+
 ### Status API Returns "unknown" Volume
 
 - Check ALSA mixer is configured: `amixer -c 1 get PCM`
