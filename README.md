@@ -1,5 +1,7 @@
 # St. Louis Blues Goal Horn Web App
 
+**Last updated:** May 29, 2026
+
 A web-based goal horn and celebration system running on a Raspberry Pi that plays music and triggers LED strobing effects when the St. Louis Blues score a goal.
 
 ## Overview
@@ -336,6 +338,59 @@ python3 testscripts/test_music.py
 - Check ALSA mixer setup: `alsamixer`
 - Verify correct audio card: `arecord -l` or `cat /proc/asound/cards`
 - Test volume control manually: `amixer -c 1 set PCM 5dB+`
+
+### NHL Feed Polling Errors
+
+When the settings page shows `Waiting for worker status`, `Starting worker`, or `Worker unavailable`, check these in order:
+
+```bash
+# 1. Read the feed endpoint exactly as the browser sees it.
+curl -s http://bluesgoal.home.local/goalhorn/_nhl_feed.php | jq .
+
+# 2. Inspect the worker status file written by PHP and the Python worker.
+sudo cat /tmp/bluesgoal_nhl_feed_status.json | jq .
+
+# 3. Confirm whether the feed is enabled. A value of 1 means enabled.
+sudo cat /tmp/bluesgoal_nhl_feed_enabled
+
+# 4. Confirm whether the worker process is running.
+pgrep -af 'goalhorn/nhl_feed/nhl_feed.py'
+
+# 5. Confirm the worker lock is writable by Apache.
+# Set APP_ROOT to the deployed app directory if yours differs.
+APP_ROOT=/var/www/html
+sudo ls -l "$APP_ROOT/goalhorn/nhl_feed/bluesgoal_nhl_feed.lock"
+
+# 6. Watch worker startup stderr/stdout captured from nohup.
+sudo tail -f /tmp/bluesgoal_nhl_feed.log
+
+# 7. Watch NHL-specific activity entries such as nhl_api_error and nhl_api_goal.
+sudo tail -f /var/www/html/logs/history.log
+
+# 8. Watch app-level logger errors.
+sudo tail -f /var/www/html/logs/error.log
+
+# 9. Check Apache/PHP errors if the endpoint itself is failing.
+sudo tail -f /var/log/apache2/error.log
+```
+
+The most useful fields in `/tmp/bluesgoal_nhl_feed_status.json` are `message`, `last_error`, `running`, `source_team`, `mode`, `last_schedule_check_at`, `last_poll_at`, `current_poll_seconds`, `game_today`, `triggers_expected`, and `watched_game_id`. A `message` of `NHL feed worker failed to start` means PHP launched the command but did not find the Python worker one second later; check `/tmp/bluesgoal_nhl_feed.log` next. If `last_error` mentions sudo or a password prompt, confirm the Apache user can launch Python without interaction:
+
+```bash
+sudo -u www-data sudo -n python3 -c 'print("sudo ok")'
+```
+
+If that fails, revisit the sudoers setup and make sure `www-data` has passwordless access to `/usr/bin/python3`. After fixing sudoers, toggle the NHL API feed off and back on, or request the status endpoint again, to trigger a worker restart.
+
+If `last_error` mentions `Permission denied` for a lock file, remove the old temporary lock and create the app-owned lock once:
+
+```bash
+sudo rm -f /tmp/bluesgoal_nhl_feed.lock
+APP_ROOT=/var/www/html
+sudo touch "$APP_ROOT/goalhorn/nhl_feed/bluesgoal_nhl_feed.lock"
+sudo chown www-data:www-data "$APP_ROOT/goalhorn/nhl_feed/bluesgoal_nhl_feed.lock"
+sudo chmod 666 "$APP_ROOT/goalhorn/nhl_feed/bluesgoal_nhl_feed.lock"
+```
 
 ### Status API Returns "unknown" Volume
 

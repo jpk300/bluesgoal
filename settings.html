@@ -74,10 +74,21 @@
         const triggersExpected = document.querySelector('[data-triggers-expected]');
         const watchedGame = document.querySelector('[data-watched-game]');
 
-        function formatSeconds(seconds) {
+        function workerPendingText(payload) {
+            const data = payload.data || {};
+            if (!payload.enabled) {
+                return 'Manual buttons only';
+            }
+            if (!payload.running) {
+                return data.last_error ? 'Worker unavailable' : 'Starting worker';
+            }
+            return data.message || 'Worker running; checking schedule';
+        }
+
+        function formatSeconds(seconds, payload) {
             const value = Number(seconds || 0);
             if (!value) {
-                return 'Waiting for worker status';
+                return workerPendingText(payload);
             }
             if (value >= 3600) {
                 return `${Math.round(value / 3600)} hours`;
@@ -105,9 +116,9 @@
             teamSelect.value = settings.source_team || data.source_team || 'STL';
             feedToggle.checked = Boolean(payload.enabled);
             feedStatus.textContent = data.message || payload.message || 'Manual buttons only';
-            currentPoll.textContent = formatSeconds(data.current_poll_seconds || data.schedule_poll_seconds);
-            gameToday.textContent = data.game_today ? 'Yes' : 'No';
-            triggersExpected.textContent = data.triggers_expected ? 'Expected if this team scores' : 'Not currently expected';
+            currentPoll.textContent = formatSeconds(data.current_poll_seconds || data.schedule_poll_seconds, payload);
+            gameToday.textContent = typeof data.game_today === 'boolean' ? (data.game_today ? 'Yes' : 'No') : workerPendingText(payload);
+            triggersExpected.textContent = typeof data.triggers_expected === 'boolean' ? (data.triggers_expected ? 'Expected if this team scores' : 'Not currently expected') : workerPendingText(payload);
             watchedGame.textContent = data.game || data.watched_game_id || 'None';
         }
 
