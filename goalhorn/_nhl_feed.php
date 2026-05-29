@@ -53,19 +53,8 @@ function nhl_feed_is_running() {
     $script = nhl_feed_script_path();
     $output = [];
     $exitCode = 1;
-    exec('pgrep -af ' . escapeshellarg($script), $output, $exitCode);
-
-    if ($exitCode !== 0 || count($output) === 0) {
-        return false;
-    }
-
-    foreach ($output as $line) {
-        if (strpos($line, 'python3') !== false && strpos($line, $script) !== false) {
-            return true;
-        }
-    }
-
-    return false;
+    exec('pgrep -f ' . escapeshellarg(nhl_feed_script_path()), $output, $exitCode);
+    return $exitCode === 0 && count($output) > 0;
 }
 
 function nhl_feed_write_enabled($enabled) {
