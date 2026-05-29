@@ -38,6 +38,10 @@
                     <dd data-current-poll>Checking status...</dd>
                 </div>
                 <div>
+                    <dt>Next poll</dt>
+                    <dd data-next-poll>Checking status...</dd>
+                </div>
+                <div>
                     <dt>Game today</dt>
                     <dd data-game-today>Checking status...</dd>
                 </div>
@@ -48,6 +52,10 @@
                 <div>
                     <dt>Watched game</dt>
                     <dd data-watched-game>None</dd>
+                </div>
+                <div class="settings-status-grid__wide">
+                    <dt>Next game starts</dt>
+                    <dd data-next-game-start>None scheduled</dd>
                 </div>
             </dl>
         </section>
@@ -70,9 +78,11 @@
         const feedStatus = document.querySelector('[data-feed-status]');
         const teamSelect = document.querySelector('[data-team-select]');
         const currentPoll = document.querySelector('[data-current-poll]');
+        const nextPoll = document.querySelector('[data-next-poll]');
         const gameToday = document.querySelector('[data-game-today]');
         const triggersExpected = document.querySelector('[data-triggers-expected]');
         const watchedGame = document.querySelector('[data-watched-game]');
+        const nextGameStart = document.querySelector('[data-next-game-start]');
 	
         function workerPendingText(payload) {
             const data = payload.data || {};
@@ -99,6 +109,47 @@
             return `${value} seconds`;
         }
 
+        function parseStatusDate(value) {
+            if (!value) {
+                return null;
+            }
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? null : date;
+        }
+
+        function formatDateTime(value) {
+            const date = parseStatusDate(value);
+            if (!date) {
+                return null;
+            }
+            return new Intl.DateTimeFormat([], {
+                weekday: 'short',
+                month: 'short',
+                day: 'numeric',
+                hour: 'numeric',
+                minute: '2-digit',
+                timeZoneName: 'short'
+            }).format(date);
+        }
+
+        function formatNextPoll(data, payload) {
+            const seconds = Number(data.current_poll_seconds || data.schedule_poll_seconds || 0);
+            if (!seconds) {
+                return workerPendingText(payload);
+            }
+            if (data.mode === 'live') {
+                return `Live game polling every ${formatSeconds(seconds, payload)}`;
+            }
+
+            const baseTime = parseStatusDate(data.last_poll_at || data.last_schedule_check_at || data.updated_at);
+            if (!baseTime) {
+                return `About ${formatSeconds(seconds, payload)} from last check`;
+            }
+
+            const nextTime = new Date(baseTime.getTime() + (seconds * 1000));
+            return formatDateTime(nextTime.toISOString()) || `About ${formatSeconds(seconds, payload)} from last check`;
+        }
+
         function renderStatus(payload) {
             const data = payload.data || {};
             const settings = payload.settings || {};
@@ -117,9 +168,11 @@
             feedToggle.checked = Boolean(payload.enabled);
             feedStatus.textContent = data.message || payload.message || 'Manual buttons only';
             currentPoll.textContent = formatSeconds(data.current_poll_seconds || data.schedule_poll_seconds, payload);
+            nextPoll.textContent = formatNextPoll(data, payload);
             gameToday.textContent = typeof data.game_today === 'boolean' ? (data.game_today ? 'Yes' : 'No') : workerPendingText(payload); 
             triggersExpected.textContent = typeof data.triggers_expected === 'boolean' ? (data.triggers_expected ? 'Expected if this team scores' : 'Not currently expected') : workerPendingText(payload);
             watchedGame.textContent = data.game || data.watched_game_id || 'None';
+            nextGameStart.textContent = formatDateTime(data.next_game_start_utc) || 'None scheduled';
         }
 
         async function fetchSettings() {

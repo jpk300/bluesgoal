@@ -297,6 +297,7 @@ def poll_game(game, source_team):
             game_state=game_state,
             game=score_line(current_game),
             current_poll_seconds=current_poll_seconds,
+            next_game_start_utc=game.get("startTimeUTC"),
             live_poll_seconds=LIVE_POLL_SECONDS,
             pregame_poll_seconds=PRE_GAME_POLL_SECONDS,
             schedule_poll_seconds=SCHEDULE_CHECK_SECONDS,
@@ -383,6 +384,7 @@ def main():
                         game_today=game_today,
                         triggers_expected=False,
                         watched_game_id=None,
+                        next_game_start_utc=None,
                         last_schedule_check_at=iso_now(),
                         last_error=None,
                     )

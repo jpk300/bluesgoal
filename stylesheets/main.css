@@ -142,6 +142,10 @@ body {
     background: rgba(255, 255, 255, 0.07);
 }
 
+.settings-status-grid__wide {
+    grid-column: 1 / -1;
+}
+
 .settings-status-grid dt {
     color: rgba(255, 255, 255, 0.68);
     font-size: 0.78rem;
