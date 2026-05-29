@@ -1,5 +1,7 @@
 # St. Louis Blues Goal Horn Web App
 
+**Last updated:** May 29, 2026
+
 A web-based goal horn and celebration system running on a Raspberry Pi that plays music and triggers LED strobing effects when the St. Louis Blues score a goal.
 
 ## Overview
