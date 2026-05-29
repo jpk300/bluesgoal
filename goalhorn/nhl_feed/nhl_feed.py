@@ -4,6 +4,7 @@
 import datetime as dt
 import json
 import os
+from pathlib import Path
 import subprocess
 import sys
 import time
@@ -29,11 +30,14 @@ ENABLED_FILE = "/tmp/bluesgoal_nhl_feed_enabled"
 SETTINGS_FILE = "/tmp/bluesgoal_nhl_feed_settings.json"
 STATUS_FILE = "/tmp/bluesgoal_nhl_feed_status.json"
 STATE_FILE = "/tmp/bluesgoal_nhl_feed_state.json"
-PROCESS_LOCK_FILE = "/tmp/bluesgoal_nhl_feed.lock"
 ACTION_LOCK_FILE = "/tmp/bluesgoal_action.lock"
 
-WINTER_CLASSIC_SCRIPT = "/var/www/html/goalhorn/bluesgoal_winterclassic/bluesgoal_winterclassic_master.py"
-LOG_ACTIVITY_SCRIPT = "/var/www/html/log_activity.py"
+NHL_FEED_DIR = Path(__file__).resolve().parent
+GOALHORN_DIR = NHL_FEED_DIR.parent
+REPO_ROOT = GOALHORN_DIR.parent
+PROCESS_LOCK_FILE = str(NHL_FEED_DIR / "bluesgoal_nhl_feed.lock")
+WINTER_CLASSIC_SCRIPT = str(GOALHORN_DIR / "bluesgoal_winterclassic" / "bluesgoal_winterclassic_master.py")
+LOG_ACTIVITY_SCRIPT = str(REPO_ROOT / "log_activity.py")
 LIVE_STATES = {"LIVE", "CRIT"}
 FINISHED_STATES = {"FINAL", "OFF"}
 VALID_TEAMS = {
@@ -163,17 +167,73 @@ def next_team_game(schedule, source_team):
     return min(candidates, key=lambda item: item[0])[1] if candidates else None
 
 
-def acquire_lock(path, blocking):
-    handle = open(path, "w", encoding="utf-8")
-    if fcntl is None:
-        return handle
-    flags = fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB)
+def is_worker_pid(pid):
     try:
-        fcntl.flock(handle, flags)
-        return handle
-    except BlockingIOError:
-        handle.close()
-        return None
+        cmdline = Path(f"/proc/{pid}/cmdline").read_text(encoding="utf-8")
+    except (FileNotFoundError, PermissionError, OSError):
+        return False
+    return "python3" in cmdline and str(Path(__file__).resolve()) in cmdline
+
+
+def cleanup_stale_lock(path):
+    lock_path = Path(path)
+    if not lock_path.exists():
+        return
+
+    try:
+        content = lock_path.read_text(encoding="utf-8").strip()
+    except PermissionError:
+        lock_path.unlink()
+        return
+    except OSError:
+        content = ""
+
+    try:
+        pid = int(content) if content else None
+    except ValueError:
+        pid = None
+
+    if pid and is_worker_pid(pid):
+        return
+
+    if not pid and fcntl is not None:
+        try:
+            with open(lock_path, "a+", encoding="utf-8") as handle:
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                fcntl.flock(handle, fcntl.LOCK_UN)
+        except BlockingIOError:
+            return
+        except PermissionError:
+            pass
+
+    try:
+        lock_path.unlink()
+    except FileNotFoundError:
+        pass
+
+
+def acquire_lock(path, blocking):
+    lock_path = Path(path)
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    cleanup_stale_lock(lock_path)
+    handle = open(lock_path, "a+", encoding="utf-8")
+    try:
+        os.chmod(lock_path, 0o666)
+    except PermissionError:
+        pass
+    if fcntl is not None:
+        flags = fcntl.LOCK_EX | (0 if blocking else fcntl.LOCK_NB)
+        try:
+            fcntl.flock(handle, flags)
+        except BlockingIOError:
+            handle.close()
+            return None
+    handle.seek(0)
+    handle.truncate()
+    handle.write(str(os.getpid()))
+    handle.flush()
+    os.fsync(handle.fileno())
+    return handle
 
 
 def release_lock(handle):
@@ -275,7 +335,17 @@ def poll_game(game, source_team):
 
 
 def main():
-    process_lock = acquire_lock(PROCESS_LOCK_FILE, blocking=False)
+    try:
+        process_lock = acquire_lock(PROCESS_LOCK_FILE, blocking=False)
+    except OSError as error:
+        update_status(
+            enabled=read_enabled(),
+            running=False,
+            message="NHL feed worker cannot create process lock",
+            last_error=f"Unable to create worker lock {PROCESS_LOCK_FILE}: {error}",
+        )
+        log_activity("nhl_api_lock_error", str(error))
+        return 1
     if process_lock is None:
         update_status(enabled=read_enabled(), running=True, message="NHL feed worker already running")
         return 0
