@@ -53,19 +53,8 @@ function nhl_feed_is_running() {
     $script = nhl_feed_script_path();
     $output = [];
     $exitCode = 1;
-    exec('pgrep -af ' . escapeshellarg($script), $output, $exitCode);
-
-    if ($exitCode !== 0 || count($output) === 0) {
-        return false;
-    }
-
-    foreach ($output as $line) {
-        if (strpos($line, 'python3') !== false && strpos($line, $script) !== false) {
-            return true;
-        }
-    }
-
-    return false;
+    exec('pgrep -f ' . escapeshellarg(nhl_feed_script_path()), $output, $exitCode);
+    return $exitCode === 0 && count($output) > 0;
 }
 
 function nhl_feed_write_enabled($enabled) {
@@ -145,25 +134,7 @@ function nhl_feed_start_worker() {
         . ' >> ' . escapeshellarg(NHL_FEED_LOG)
         . ' 2>&1 &';
     @shell_exec($command);
-    sleep(1);
-
-    if (nhl_feed_is_running()) {
-        nhl_feed_write_status([
-            'enabled' => true,
-            'running' => true,
-            'message' => 'NHL feed worker started',
-            'last_error' => null
-        ]);
-        return true;
-    }
-
-    nhl_feed_write_status([
-        'enabled' => true,
-        'running' => false,
-        'message' => 'NHL feed worker failed to start',
-        'last_error' => 'Worker process was not found after launch; check ' . NHL_FEED_LOG
-    ]);
-    return false;
+    return true;
 }
 
 function nhl_feed_payload($message = null) {
