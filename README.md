@@ -5,7 +5,7 @@
 
 A local Raspberry Pi web app for St. Louis Blues goal celebrations. The app provides a touch-friendly Apache/PHP interface that triggers goal horn audio, GPIO-controlled LED strobes, stop and volume controls, activity logging, and optional NHL API goal detection.
 
-> **Deployment assumption:** v2.1.0 expects the application files to live directly in Apache's default document root: `/var/www/html`. Several scripts still use hard-coded `/var/www/html/...` paths, so installing into `/var/www/html/bluesgoal` requires code/config changes or symlinks.
+> **Deployment assumption:** v2.1.0 still expects the application files to live directly in Apache's default document root: `/var/www/html`. Core Python scripts now support environment overrides for several paths and audio settings, but PHP entrypoints still invoke some `/var/www/html/...` paths, so installing into `/var/www/html/bluesgoal` still requires additional code/config changes or symlinks.
 
 ## Overview
 
@@ -34,9 +34,12 @@ sudo rsync -a --delete --exclude .git --exclude mp3 --exclude images --exclude l
 # Create local asset and app runtime directories
 sudo mkdir -p /var/www/html/mp3 /var/www/html/images /var/www/html/logs
 sudo mkdir -p /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
-sudo chown -R www-data:www-data /var/www/html/logs
+sudo chown -R root:root /var/www/html
+sudo chown -R www-data:www-data /var/www/html/logs /var/www/html/mp3 /var/www/html/images
 sudo chown www-data:www-data /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
-sudo chmod 755 /var/www/html/logs
+sudo find /var/www/html -type d -exec chmod 755 {} \;
+sudo find /var/www/html -type f -exec chmod 644 {} \;
+sudo find /var/www/html -name '*.py' -exec chmod 755 {} \;
 sudo chmod 775 /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
 
 # Add your required image and audio assets, then open:
@@ -119,11 +122,18 @@ sudo systemctl status apache2
 ### 3. Create Writable Runtime Directories
 
 ```bash
-sudo mkdir -p /var/www/html/logs /var/www/html/mp3 /var/www/html/images
+sudo mkdir -p /var/www/html/mp3 /var/www/html/images /var/www/html/logs
 sudo mkdir -p /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
-sudo chown -R www-data:www-data /var/www/html/logs
+
+# Application code/static files: Apache-readable, root/admin-writable
+sudo chown -R root:root /var/www/html
+sudo find /var/www/html -type d -exec chmod 755 {} \;
+sudo find /var/www/html -type f -exec chmod 644 {} \;
+sudo find /var/www/html -name '*.py' -exec chmod 755 {} \;
+
+# Runtime and local asset directories: writable where the app needs it
+sudo chown -R www-data:www-data /var/www/html/logs /var/www/html/mp3 /var/www/html/images
 sudo chown www-data:www-data /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
-sudo chmod 755 /var/www/html/logs
 sudo chmod 775 /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
 ```
 
@@ -134,9 +144,10 @@ Runtime directory usage:
 - `/var/log/bluesgoal` stores NHL worker logs.
 
 Recommended ownership model:
-- Keep application code readable/executable by Apache, but not necessarily owned by `www-data`.
+- Keep application code owned by `root:root` and readable/executable by Apache; the web server does not need write access to `config.py`, PHP files, HTML, CSS, or backend code.
 - Keep writable runtime directories owned by `www-data` for the current Apache/PHP execution model.
-- Keep MP3/image assets readable by Apache.
+- Keep MP3/image assets readable by Apache. They may be owned by `www-data` if you copy/manage them as that user, but they only need to be writable when you are adding or replacing assets.
+- Remove any `__pycache__` directories from `/var/www/html`; active web-invoked Python commands use `python3 -B` to avoid creating bytecode caches in the document root.
 
 ### 4. Add Required MP3 Audio Files
 
@@ -187,11 +198,80 @@ Avoid granting `/usr/bin/python` unless you still need Python 2 legacy scripts. 
 
 ### 7. Set File Permissions
 
+For a fresh install, run the full block below after deploying files and creating the runtime directories:
+
 ```bash
+# Code and static files: readable by Apache, writable only by root/admins
+sudo chown -R root:root /var/www/html
 sudo find /var/www/html -type d -exec chmod 755 {} \;
 sudo find /var/www/html -type f -exec chmod 644 {} \;
 sudo find /var/www/html -name '*.py' -exec chmod 755 {} \;
-sudo chown -R www-data:www-data /var/www/html/logs
+
+# Runtime and local asset directories: writable by the web app where needed
+sudo chown -R www-data:www-data /var/www/html/logs /var/www/html/mp3 /var/www/html/images
+sudo chown www-data:www-data /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
+sudo chmod 775 /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
+
+# Optional cleanup if Python bytecode caches were created during manual testing
+sudo find /var/www/html -type d -name __pycache__ -prune -exec rm -rf {} +
+```
+
+If you already have a working `/var/www/html` install and only need to correct permissions like the screenshot, use this exact migration block:
+
+```bash
+# 1. Make the deployed application tree root-owned, readable by Apache,
+#    and executable/searchable where directories or Python scripts need it.
+sudo chown -R root:root /var/www/html
+sudo find /var/www/html -type d -exec chmod 755 {} \;
+sudo find /var/www/html -type f -exec chmod 644 {} \;
+sudo find /var/www/html -name '*.py' -exec chmod 755 {} \;
+
+# 2. Restore write ownership only for local assets and web/app logs.
+sudo mkdir -p /var/www/html/images /var/www/html/mp3 /var/www/html/logs
+sudo chown -R www-data:www-data /var/www/html/images /var/www/html/mp3 /var/www/html/logs
+sudo find /var/www/html/images /var/www/html/mp3 /var/www/html/logs -type d -exec chmod 755 {} \;
+sudo find /var/www/html/images /var/www/html/mp3 /var/www/html/logs -type f -exec chmod 644 {} \;
+
+# 3. Ensure runtime state/log directories exist and are writable by the web app.
+sudo mkdir -p /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
+sudo chown www-data:www-data /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
+sudo chmod 775 /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
+
+# 4. Remove Python bytecode caches from the web root.
+sudo find /var/www/html -type d -name __pycache__ -prune -exec rm -rf {} +
+```
+
+After either block, validate the setup:
+
+```bash
+# Confirm code is not writable by www-data, but Apache can read it.
+ls -ld /var/www/html /var/www/html/goalhorn /var/www/html/config /var/www/html/stylesheets
+ls -l /var/www/html/config.py /var/www/html/index.html /var/www/html/settings.html
+
+# Confirm only app runtime/asset directories are www-data writable.
+ls -ld /var/www/html/images /var/www/html/mp3 /var/www/html/logs /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
+
+# Confirm sudo and status endpoint behavior.
+sudo -u www-data sudo -n python3 -B -c 'print("sudo ok")'
+curl -s http://localhost/goalhorn/_status.php
+```
+
+Expected ownership summary:
+
+```text
+/var/www/html                         root:root      drwxr-xr-x
+/var/www/html/config.py               root:root      -rw-r--r--
+/var/www/html/index.html              root:root      -rw-r--r--
+/var/www/html/settings.html           root:root      -rw-r--r--
+/var/www/html/config                  root:root      drwxr-xr-x
+/var/www/html/goalhorn                root:root      drwxr-xr-x
+/var/www/html/stylesheets             root:root      drwxr-xr-x
+/var/www/html/images                  www-data:www-data drwxr-xr-x
+/var/www/html/mp3                     www-data:www-data drwxr-xr-x
+/var/www/html/logs                    www-data:www-data drwxr-xr-x
+/var/lib/bluesgoal                    www-data:www-data drwxrwxr-x
+/run/bluesgoal                        www-data:www-data drwxrwxr-x
+/var/log/bluesgoal                    www-data:www-data drwxrwxr-x
 ```
 
 ## Usage
@@ -285,7 +365,7 @@ bluesgoal/
 1. The user taps a control on `index.html`.
 2. JavaScript prevents page navigation and sends a `fetch()` request to the corresponding PHP endpoint.
 3. The PHP helper attempts to acquire `/run/bluesgoal/action.lock` for horn actions.
-4. The PHP endpoint logs the action and runs `goalhorn/action_runner.py` with a validated sound action using `sudo python3`.
+4. The PHP endpoint logs the action and runs `goalhorn/action_runner.py` with a validated sound action using non-interactive `sudo -n python3 -B`. The `-B` flag prevents Python bytecode caches in the web root.
 5. The shared action runner loads `config.py`, validates the requested action against `SOUNDS`, resolves the MP3 path, configures BOARD pins 7 and 8 as outputs, drives them LOW to activate active-low relays, stops any existing `mpg321` process, starts the selected MP3, keeps relays active for the configured duration, drives pins HIGH, and cleans up GPIO.
 6. Stop and volume endpoints do not use the horn-action lock, so they can interrupt/adjust playback.
 7. PHP returns a JSON response to the browser.
@@ -308,15 +388,15 @@ When enabled, the PHP settings endpoint starts a background Python worker that:
 `config.py` is intended to centralize key settings:
 
 ```python
-BASE_PATH = '/var/www/html'
-MP3_DIR = os.path.join(BASE_PATH, 'mp3')
-LOG_DIR = os.path.join(BASE_PATH, 'logs')
+BASE_PATH = os.environ.get('BLUESGOAL_BASE_PATH', '/var/www/html')
+MP3_DIR = os.environ.get('BLUESGOAL_MP3_DIR', os.path.join(BASE_PATH, 'mp3'))
+LOG_DIR = os.environ.get('BLUESGOAL_LOG_DIR', os.path.join(BASE_PATH, 'logs'))
 RELAY_PINS = [7, 8]
 RELAY_ACTIVE_LOW = True
 RELAY_DURATION = 30
-AUDIO_CARD = 1
-VOLUME_STEP = '5dB'
-AUDIO_PLAYER = 'mpg321'
+AUDIO_CARD = os.environ.get('BLUESGOAL_AUDIO_CARD', '1')
+VOLUME_STEP = os.environ.get('BLUESGOAL_VOLUME_STEP', '5dB')
+AUDIO_PLAYER = os.environ.get('BLUESGOAL_AUDIO_PLAYER', 'mpg321')
 SOUNDS = {
     'powerplay': 'powerplay.mp3',
     'bluesgoal_winterclassic': 'bluesgoal_winterclassic.mp3',
@@ -326,7 +406,7 @@ SOUNDS = {
 }
 ```
 
-> **Current limitation:** Goal horn sound actions now use the shared action runner and `config.py` for relay pins, relay duration, audio player, and MP3 filenames. Some other v2.1.0 scripts still hard-code `/var/www/html`, ALSA card `1`, and `PCM`; if changing install paths or mixer devices, search the codebase for those hard-coded values until the remaining config refactor is complete.
+> **Current limitation:** Goal horn sound actions, status, stop, and volume scripts use `config.py` for the shared values above. Some PHP entrypoints still hard-code `/var/www/html` when invoking scripts, and the ALSA mixer control name is still `PCM`; if changing install paths or mixer controls, search the codebase for those hard-coded values until the remaining config refactor is complete.
 
 ## GPIO Pin Usage
 
@@ -500,7 +580,7 @@ There is not yet a non-hardware automated regression test suite. Recommended fut
 
 - Check current command output: `amixer -c 1 get PCM`.
 - Confirm the output contains a percentage such as `[85%]`.
-- Confirm the correct ALSA card/control for your device.
+- Confirm the correct ALSA card/control for your device. If the card differs, set `BLUESGOAL_AUDIO_CARD` for the Apache/PHP environment or update `AUDIO_CARD` in `config.py`. The mixer control name is currently `PCM`.
 
 ### Action Lock / “Wait for current action to complete”
 
@@ -539,7 +619,7 @@ sudo tail -f /var/www/html/logs/error.log
 sudo tail -f /var/log/apache2/error.log
 
 # 9. Verify sudoers is configured for Python
-sudo -u www-data sudo -n python3 -c 'print("sudo ok")'
+sudo -u www-data sudo -n python3 -B -c 'print("sudo ok")'
 ```
 
 If sudoers verification fails, revisit the sudoers setup and ensure `www-data` has passwordless access to `/usr/bin/python3`. After fixing, toggle the NHL API feed off and back on in settings.
@@ -550,11 +630,18 @@ If sudoers verification fails, revisit the sudoers setup and ensure `www-data` h
 curl -s http://localhost/goalhorn/_nhl_feed.php | jq .
 ```
 
+Optional `tmpfiles.d` rule for reboot-safe runtime directory creation:
+
+```bash
+printf 'd /run/bluesgoal 0775 www-data www-data -\n' | sudo tee /etc/tmpfiles.d/bluesgoal.conf
+sudo systemd-tmpfiles --create /etc/tmpfiles.d/bluesgoal.conf
+```
+
 ## Known Maintenance Items
 
 These are known v2.1.0 cleanup opportunities:
 
-1. Use `config.py` consistently in the remaining volume/status/deployment paths.
+1. Finish removing hard-coded `/var/www/html` paths from PHP entrypoints and deployment docs.
 2. Replace broad `www-data` passwordless Python sudo with a narrow runner-specific sudo rule or systemd service.
 3. Rename `test_gpio_simutaneous.py` to `test_gpio_simultaneous.py`.
 4. Add non-hardware automated tests.

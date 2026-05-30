@@ -2,6 +2,9 @@
 
 import subprocess
 import time
+from pathlib import Path
 
-subprocess.run(['python3', '/var/www/html/goalhorn/volume/volume_up.py'], check=False)
+GOALHORN_DIR = Path(__file__).resolve().parents[1]
+
+subprocess.run(['python3', '-B', str(GOALHORN_DIR / 'volume' / 'volume_up.py')], check=False)
 time.sleep(1)
