@@ -1,37 +1,15 @@
 #!/usr/bin/python3
+"""Backward-compatible wrapper for the shared goal horn action runner."""
 
-import RPi.GPIO as GPIO
-import time
-import subprocess
+import sys
+from pathlib import Path
 
-GPIO.setwarnings(False)
-GPIO.cleanup()
-GPIO.setmode(GPIO.BOARD)
+GOALHORN_DIR = Path(__file__).resolve().parents[1]
+if str(GOALHORN_DIR) not in sys.path:
+    sys.path.insert(0, str(GOALHORN_DIR))
 
-PINS = [7, 8]
+from action_runner import main
 
-# Active-low relay setup
-GPIO.setup(PINS, GPIO.OUT, initial=GPIO.HIGH)
 
-try:
-    print("Turning relays ON")
-    GPIO.output(PINS, GPIO.LOW)
-
-    print("Stopping old audio if running")
-    subprocess.run(["pkill", "-f", "mpg321"], stderr=subprocess.DEVNULL)
-    time.sleep(0.25)
-
-    print("Starting audio")
-    subprocess.Popen([
-        "mpg321",
-        "/var/www/html/mp3/marching_in.mp3"
-    ])
-
-    print("Keeping relays active for 30 seconds")
-    time.sleep(30)
-
-    print("Turning relays OFF")
-    GPIO.output(PINS, GPIO.HIGH)
-
-finally:
-    GPIO.cleanup()
+if __name__ == "__main__":
+    raise SystemExit(main(["marching_in"]))
