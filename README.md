@@ -20,27 +20,24 @@ This project is a small Python/PHP application intended for a trusted home LAN. 
 ## Quick Start
 
 ```bash
-# Install system dependencies
+# Bootstrap Git if this is a fresh Raspberry Pi OS install
 sudo apt-get update
-sudo apt-get install python3 git apache2 php mpg321 alsa-utils python3-rpi.gpio rsync
+sudo apt-get install -y git
 
-# Deploy this branch directly into Apache's document root
+# Clone and check out this branch
 cd /tmp
 git clone https://github.com/jpk300/bluesgoal.git bluesgoal
 cd bluesgoal
 git checkout v2.1.0
+
+# Install system dependencies from the repo helper script
+sudo scripts/install_prereqs.sh
+
+# Deploy this branch directly into Apache's document root
 sudo rsync -a --delete --exclude .git --exclude mp3 --exclude images --exclude logs ./ /var/www/html/
 
-# Create local asset and app runtime directories
-sudo mkdir -p /var/www/html/mp3 /var/www/html/images /var/www/html/logs
-sudo mkdir -p /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
-sudo chown -R root:root /var/www/html
-sudo chown -R www-data:www-data /var/www/html/logs /var/www/html/mp3 /var/www/html/images
-sudo chown www-data:www-data /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
-sudo find /var/www/html -type d -exec chmod 755 {} \;
-sudo find /var/www/html -type f -exec chmod 644 {} \;
-sudo find /var/www/html -name '*.py' -exec chmod 755 {} \;
-sudo chmod 775 /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
+# Create local asset/app runtime directories and apply permissions
+sudo scripts/setup_permissions.sh
 
 # Add your required image and audio assets, then open:
 # http://bluesgoal.home.local
@@ -77,6 +74,14 @@ sudo chmod 775 /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
 ## Software Requirements
 
 ### System Packages
+
+From the repository root, install required OS packages with:
+
+```bash
+sudo scripts/install_prereqs.sh
+```
+
+Manual equivalent:
 
 ```bash
 sudo apt-get update
@@ -121,6 +126,16 @@ sudo systemctl status apache2
 
 ### 3. Create Writable Runtime Directories
 
+Use the repository helper script for the default `/var/www/html` deployment:
+
+```bash
+sudo scripts/setup_permissions.sh
+```
+
+The script creates `/var/www/html/images`, `/var/www/html/mp3`, `/var/www/html/logs`, `/var/lib/bluesgoal`, `/run/bluesgoal`, and `/var/log/bluesgoal`; applies the recommended ownership/permissions; removes existing `__pycache__` directories; and installs a `tmpfiles.d` rule for `/run/bluesgoal` when `systemd-tmpfiles` is available.
+
+Manual equivalent:
+
 ```bash
 sudo mkdir -p /var/www/html/mp3 /var/www/html/images /var/www/html/logs
 sudo mkdir -p /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
@@ -130,6 +145,7 @@ sudo chown -R root:root /var/www/html
 sudo find /var/www/html -type d -exec chmod 755 {} \;
 sudo find /var/www/html -type f -exec chmod 644 {} \;
 sudo find /var/www/html -name '*.py' -exec chmod 755 {} \;
+sudo find /var/www/html -path '*/scripts/*.sh' -exec chmod 755 {} \;
 
 # Runtime and local asset directories: writable where the app needs it
 sudo chown -R www-data:www-data /var/www/html/logs /var/www/html/mp3 /var/www/html/images
@@ -198,7 +214,19 @@ Avoid granting `/usr/bin/python` unless you still need Python 2 legacy scripts. 
 
 ### 7. Set File Permissions
 
-For a fresh install, run the full block below after deploying files and creating the runtime directories:
+For a fresh install, run the helper script after deploying files and creating the runtime directories:
+
+```bash
+sudo scripts/setup_permissions.sh
+```
+
+If the app is installed somewhere other than `/var/www/html`, override the document root:
+
+```bash
+sudo DOC_ROOT=/path/to/bluesgoal scripts/setup_permissions.sh
+```
+
+Manual equivalent:
 
 ```bash
 # Code and static files: readable by Apache, writable only by root/admins
@@ -206,6 +234,7 @@ sudo chown -R root:root /var/www/html
 sudo find /var/www/html -type d -exec chmod 755 {} \;
 sudo find /var/www/html -type f -exec chmod 644 {} \;
 sudo find /var/www/html -name '*.py' -exec chmod 755 {} \;
+sudo find /var/www/html -path '*/scripts/*.sh' -exec chmod 755 {} \;
 
 # Runtime and local asset directories: writable by the web app where needed
 sudo chown -R www-data:www-data /var/www/html/logs /var/www/html/mp3 /var/www/html/images
@@ -225,6 +254,7 @@ sudo chown -R root:root /var/www/html
 sudo find /var/www/html -type d -exec chmod 755 {} \;
 sudo find /var/www/html -type f -exec chmod 644 {} \;
 sudo find /var/www/html -name '*.py' -exec chmod 755 {} \;
+sudo find /var/www/html -path '*/scripts/*.sh' -exec chmod 755 {} \;
 
 # 2. Restore write ownership only for local assets and web/app logs.
 sudo mkdir -p /var/www/html/images /var/www/html/mp3 /var/www/html/logs
@@ -260,7 +290,7 @@ Expected ownership summary:
 
 ```text
 /var/www/html                         root:root      drwxr-xr-x
-/var/www/html/config.py               root:root      -rw-r--r--
+/var/www/html/config.py               root:root      -rwxr-xr-x
 /var/www/html/index.html              root:root      -rw-r--r--
 /var/www/html/settings.html           root:root      -rw-r--r--
 /var/www/html/config                  root:root      drwxr-xr-x
@@ -319,6 +349,10 @@ bluesgoal/
 │
 ├── stylesheets/
 │   └── main.css               # Responsive CSS styling
+│
+├── scripts/
+│   ├── install_prereqs.sh     # Installs Debian/Raspberry Pi OS packages
+│   └── setup_permissions.sh   # Creates runtime dirs and applies permissions
 │
 ├── images/                    # Required local image assets, not committed
 │
