@@ -76,6 +76,8 @@
     <script>
         // Track which buttons are currently processing
         const processingButtons = new Set();
+        let currentVolume = null;
+        let volumeDisplayTimeout = null;
 
         // Fetch and display current status
         async function updateStatus() {
@@ -87,9 +89,9 @@
                 const data = await response.json();
 
                 if (data.success && data.data) {
-                    // Update volume display
+                    // Keep the latest volume available without showing a permanent overlay.
                     if (data.data.volume !== undefined && data.data.volume !== null && data.data.volume !== 'unknown') {
-                        updateVolumeDisplay(data.data.volume);
+                        currentVolume = data.data.volume;
                     }
 
                     // Update audio playing status
@@ -103,7 +105,7 @@
             }
         }
 
-        function updateVolumeDisplay(volume) {
+        function showVolumeDisplay(volume, durationMs = 2500) {
             let display = document.getElementById('volume-display');
             if (!display) {
                 display = document.createElement('div');
@@ -124,6 +126,12 @@
                 document.body.appendChild(display);
             }
             display.textContent = `🔊 Volume: ${volume}%`;
+            display.hidden = false;
+
+            clearTimeout(volumeDisplayTimeout);
+            volumeDisplayTimeout = setTimeout(() => {
+                display.hidden = true;
+            }, durationMs);
         }
 
         function updateAudioStatus(isPlaying) {
@@ -206,6 +214,10 @@ document.querySelectorAll('[data-action]').forEach((button) => {
                     if (data.success) {
                         // Refresh status once before releasing button state
                         await updateStatus();
+
+                        if (button.href.includes('_volume_up.php') || button.href.includes('_volume_down.php')) {
+                            showVolumeDisplay(currentVolume);
+                        }
 
                         // Show success feedback
                         showNotification('✓ ' + (data.message || 'Action completed'), 'success');
