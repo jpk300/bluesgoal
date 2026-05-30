@@ -44,7 +44,7 @@ NHL_FEED_DIR = Path(__file__).resolve().parent
 GOALHORN_DIR = NHL_FEED_DIR.parent
 REPO_ROOT = GOALHORN_DIR.parent
 NHL_TEAMS_FILE = REPO_ROOT / "config" / "nhl_teams.json"
-WINTER_CLASSIC_SCRIPT = str(GOALHORN_DIR / "bluesgoal_winterclassic" / "bluesgoal_winterclassic_master.py")
+ACTION_RUNNER_SCRIPT = str(GOALHORN_DIR / "action_runner.py")
 LOG_ACTIVITY_SCRIPT = str(REPO_ROOT / "log_activity.py")
 LIVE_STATES = {"LIVE", "CRIT"}
 FINISHED_STATES = {"FINAL", "OFF"}
@@ -297,7 +297,7 @@ def trigger_winter_classic(source_team, game_id, event_id):
     action_lock = acquire_lock(ACTION_LOCK_FILE, blocking=True)
     try:
         result = subprocess.run(
-            ["sudo", "python3", WINTER_CLASSIC_SCRIPT],
+            ["sudo", "python3", ACTION_RUNNER_SCRIPT, "bluesgoal_winterclassic"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

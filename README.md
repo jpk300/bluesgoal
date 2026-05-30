@@ -31,10 +31,13 @@ cd bluesgoal
 git checkout v2.1.0
 sudo rsync -a --delete --exclude .git --exclude mp3 --exclude images --exclude logs ./ /var/www/html/
 
-# Create local asset/runtime directories
+# Create local asset and app runtime directories
 sudo mkdir -p /var/www/html/mp3 /var/www/html/images /var/www/html/logs
+sudo mkdir -p /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
 sudo chown -R www-data:www-data /var/www/html/logs
+sudo chown www-data:www-data /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
 sudo chmod 755 /var/www/html/logs
+sudo chmod 775 /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
 
 # Add your required image and audio assets, then open:
 # http://bluesgoal.home.local
@@ -117,18 +120,27 @@ sudo systemctl status apache2
 
 ```bash
 sudo mkdir -p /var/www/html/logs /var/www/html/mp3 /var/www/html/images
+sudo mkdir -p /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
 sudo chown -R www-data:www-data /var/www/html/logs
+sudo chown www-data:www-data /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
 sudo chmod 755 /var/www/html/logs
+sudo chmod 775 /var/lib/bluesgoal /run/bluesgoal /var/log/bluesgoal
 ```
+
+Runtime directory usage:
+- `/var/www/html/logs` stores web/app activity and error logs.
+- `/var/lib/bluesgoal` stores durable NHL feed settings/state.
+- `/run/bluesgoal` stores transient locks and worker status. Because `/run` is recreated on reboot, recreate this directory during startup if needed.
+- `/var/log/bluesgoal` stores NHL worker logs.
 
 Recommended ownership model:
 - Keep application code readable/executable by Apache, but not necessarily owned by `www-data`.
-- Keep writable runtime directories, especially `/var/www/html/logs`, owned by `www-data`.
+- Keep writable runtime directories owned by `www-data` for the current Apache/PHP execution model.
 - Keep MP3/image assets readable by Apache.
 
 ### 4. Add Required MP3 Audio Files
 
-Audio files are intentionally not committed to Git. Add these files to `/var/www/html/mp3` unless you also update `config.py` and the legacy hard-coded script paths:
+Audio files are intentionally not committed to Git. Add these files to `/var/www/html/mp3` unless you also update `config.py`:
 
 ```text
 /var/www/html/mp3/powerplay.mp3
@@ -237,6 +249,7 @@ bluesgoal/
 │   └── error.log              # JSON-lines error log
 │
 ├── goalhorn/                  # Apache endpoints and backend scripts
+│   ├── action_runner.py       # Shared GPIO/audio runner for goal horn sounds
 │   ├── _helpers.php           # Shared PHP JSON/logging/action helpers
 │   ├── _powerplay.php
 │   ├── _bluesgoal_winterclassic.php
@@ -271,9 +284,9 @@ bluesgoal/
 
 1. The user taps a control on `index.html`.
 2. JavaScript prevents page navigation and sends a `fetch()` request to the corresponding PHP endpoint.
-3. The PHP helper attempts to acquire `/tmp/bluesgoal_action.lock` for horn actions.
-4. The PHP endpoint logs the action and runs the relevant Python script with `sudo python3`.
-5. Horn scripts configure BOARD pins 7 and 8 as outputs, drive them LOW to activate active-low relays, stop any existing `mpg321` process, start the selected MP3, keep relays active for about 30 seconds, drive pins HIGH, and clean up GPIO.
+3. The PHP helper attempts to acquire `/run/bluesgoal/action.lock` for horn actions.
+4. The PHP endpoint logs the action and runs `goalhorn/action_runner.py` with a validated sound action using `sudo python3`.
+5. The shared action runner loads `config.py`, validates the requested action against `SOUNDS`, resolves the MP3 path, configures BOARD pins 7 and 8 as outputs, drives them LOW to activate active-low relays, stops any existing `mpg321` process, starts the selected MP3, keeps relays active for the configured duration, drives pins HIGH, and cleans up GPIO.
 6. Stop and volume endpoints do not use the horn-action lock, so they can interrupt/adjust playback.
 7. PHP returns a JSON response to the browser.
 8. The frontend shows a notification and refreshes status from `_status.php`.
@@ -282,13 +295,13 @@ bluesgoal/
 
 When enabled, the PHP settings endpoint starts a background Python worker that:
 
-1. Reads the selected source team from `/tmp/bluesgoal_nhl_feed_settings.json`.
+1. Reads the selected source team from `/var/lib/bluesgoal/nhl_feed_settings.json`.
 2. Polls the NHL API for schedule and play-by-play data.
 3. Establishes a baseline of already-seen goal events to avoid replaying old goals.
-4. Triggers the Winter Classic horn when a new goal for the selected team is detected.
-5. Writes status to `/tmp/bluesgoal_nhl_feed_status.json` and logs events to `/var/www/html/logs/history.log`.
+4. Triggers the Winter Classic horn through the shared action runner when a new goal for the selected team is detected.
+5. Writes transient status to `/run/bluesgoal/nhl_feed_status.json`, durable state to `/var/lib/bluesgoal/nhl_feed_state.json`, worker logs to `/var/log/bluesgoal/nhl_feed.log`, and app activity to `/var/www/html/logs/history.log`.
 
-> **Runtime-state note:** v2.1.0 currently stores NHL feed state and locks in `/tmp`. Those files can disappear after reboot and can interact poorly with Apache/systemd `PrivateTmp`. A future hardening pass should move durable state to `/var/lib/bluesgoal`, transient locks/status to `/run/bluesgoal`, and logs to `/var/log/bluesgoal`.
+> **Runtime-state note:** v2.1.0 uses `/var/lib/bluesgoal` for durable NHL feed state/settings, `/run/bluesgoal` for transient locks/status, and `/var/log/bluesgoal` for NHL worker logs. Legacy `/tmp/bluesgoal_*` files may be copied forward if present, but `/tmp` is no longer the active runtime location.
 
 ## Configuration
 
@@ -313,7 +326,7 @@ SOUNDS = {
 }
 ```
 
-> **Current limitation:** Some v2.1.0 scripts still hard-code `/var/www/html`, `mpg321`, GPIO pins, ALSA card `1`, and `PCM`. If changing install paths, pins, mixer devices, or player commands, search the codebase for those hard-coded values until the planned shared action runner refactor is complete.
+> **Current limitation:** Goal horn sound actions now use the shared action runner and `config.py` for relay pins, relay duration, audio player, and MP3 filenames. Some other v2.1.0 scripts still hard-code `/var/www/html`, ALSA card `1`, and `PCM`; if changing install paths or mixer devices, search the codebase for those hard-coded values until the remaining config refactor is complete.
 
 ## GPIO Pin Usage
 
@@ -492,7 +505,7 @@ There is not yet a non-hardware automated regression test suite. Recommended fut
 ### Action Lock / “Wait for current action to complete”
 
 - This is expected while a horn action is already running.
-- The lock file is `/tmp/bluesgoal_action.lock`.
+- The lock file is `/run/bluesgoal/action.lock`.
 - Horn scripts currently keep relays active for about 30 seconds.
 - Use Stop if you need to interrupt playback.
 
@@ -531,7 +544,7 @@ sudo -u www-data sudo -n python3 -c 'print("sudo ok")'
 
 If sudoers verification fails, revisit the sudoers setup and ensure `www-data` has passwordless access to `/usr/bin/python3`. After fixing, toggle the NHL API feed off and back on in settings.
 
-**Note on systemd `PrivateTmp`:** If Apache/PHP uses an isolated `/tmp`, NHL feed files may be under a private Apache namespace. The most reliable status check is usually:
+**Note on `/run/bluesgoal`:** `/run` is usually recreated on reboot. If action locking or NHL feed status fails after a restart, recreate `/run/bluesgoal` with the runtime-directory commands above, or add a `tmpfiles.d` rule/startup step to create it automatically. The most reliable live status check is usually:
 
 ```bash
 curl -s http://localhost/goalhorn/_nhl_feed.php | jq .
@@ -541,14 +554,13 @@ curl -s http://localhost/goalhorn/_nhl_feed.php | jq .
 
 These are known v2.1.0 cleanup opportunities:
 
-1. Replace duplicated horn scripts with one shared Python action runner.
-2. Use `config.py` consistently instead of hard-coded paths/pins/audio settings.
-3. Move durable NHL settings/state out of `/tmp`.
-4. Replace broad `www-data` passwordless Python sudo with a narrow runner or systemd service.
-5. Rename `test_gpio_simutaneous.py` to `test_gpio_simultaneous.py`.
-6. Add non-hardware automated tests.
-7. Rotate or bound activity/error logs.
-8. Split inline JavaScript/CSS into static assets as the UI grows.
+1. Use `config.py` consistently in the remaining volume/status/deployment paths.
+2. Replace broad `www-data` passwordless Python sudo with a narrow runner-specific sudo rule or systemd service.
+3. Rename `test_gpio_simutaneous.py` to `test_gpio_simultaneous.py`.
+4. Add non-hardware automated tests.
+5. Rotate or bound activity/error logs.
+6. Split inline JavaScript/CSS into static assets as the UI grows.
+7. Add startup automation, such as `tmpfiles.d`, to recreate `/run/bluesgoal` after reboot.
 
 ## Recent Updates
 
@@ -558,6 +570,7 @@ These are known v2.1.0 cleanup opportunities:
 - Background Python worker for NHL API polling
 - Worker status monitoring in the settings page
 - Enhanced activity logging for NHL API events
+- Shared Python action runner for goal horn GPIO/audio behavior
 - Improved troubleshooting documentation
 
 ### v2.0.0
@@ -575,7 +588,7 @@ These are known v2.1.0 cleanup opportunities:
 - The app is intended for trusted local LAN use only.
 - Current active scripts use `mpg321`, `amixer`, and `python3-rpi.gpio`.
 - Local image and audio assets are excluded from Git by `.gitignore`.
-- NHL API worker state currently lives in `/tmp`.
+- NHL API durable state lives in `/var/lib/bluesgoal`, transient locks/status live in `/run/bluesgoal`, and worker logs live in `/var/log/bluesgoal`.
 
 ## License
 

@@ -29,7 +29,7 @@ function goalhorn_log_activity($action, $message) {
     @shell_exec($command);
 }
 
-function goalhorn_run_python_action($action, $message, $scriptPath, $useLock = true) {
+function goalhorn_run_python_action($action, $message, $scriptPath, $useLock = true, $scriptArgs = []) {
     if (!file_exists($scriptPath)) {
         goalhorn_log_activity($action, 'Script not found: ' . $scriptPath);
         goalhorn_json_response(500, [
@@ -72,7 +72,11 @@ function goalhorn_run_python_action($action, $message, $scriptPath, $useLock = t
 
     $outputLines = [];
     $exitCode = 0;
-    $command = 'sudo python3 ' . escapeshellarg($scriptPath) . ' 2>&1';
+    $command = 'sudo python3 ' . escapeshellarg($scriptPath);
+    foreach ($scriptArgs as $arg) {
+        $command .= ' ' . escapeshellarg($arg);
+    }
+    $command .= ' 2>&1';
     exec($command, $outputLines, $exitCode);
 
     if ($lockHandle) {

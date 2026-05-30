@@ -18,3 +18,7 @@
 *.v9
 *.v10
 *.old
+
+#Python cache
+__pycache__/
+*.py[cod]
