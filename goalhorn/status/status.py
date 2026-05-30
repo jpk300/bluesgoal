@@ -15,7 +15,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from config import AUDIO_CARD, AUDIO_PLAYER
+from config import AUDIO_CARD, AUDIO_MIXER_CONTROL, AUDIO_PLAYER
+from goalhorn.volume.alsa_mixer import choose_control
 
 
 def run_command(args):
@@ -32,7 +33,8 @@ def run_command(args):
 
 
 def get_volume():
-    result = run_command(['amixer', '-c', str(AUDIO_CARD), 'get', 'PCM'])
+    mixer_control, _ = choose_control(AUDIO_CARD, AUDIO_MIXER_CONTROL)
+    result = run_command(['amixer', '-c', str(AUDIO_CARD), 'get', mixer_control])
     if result.returncode != 0:
         return 'unknown'
 

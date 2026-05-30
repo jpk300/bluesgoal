@@ -29,7 +29,7 @@ The recommended deployment remains Apache's default document root, `/var/www/htm
 - GPIO relay strobes on physical BOARD pins 7 and 8.
 - Active-low relay support.
 - Stop button that kills active `mpg321` playback and turns relays off.
-- ALSA volume up/down controls using the `PCM` mixer.
+- ALSA volume up/down controls using auto-detected mixer controls.
 - Browser status polling for current volume and audio playback state.
 - JSON-lines activity and error logs.
 - Optional NHL API feed that can trigger the Winter Classic horn when the selected team scores.
@@ -270,7 +270,7 @@ Main controls:
 
 - Goal horn buttons trigger one sound and the relay strobe action.
 - Stop interrupts active playback and turns relays off.
-- Volume buttons adjust ALSA `PCM` volume.
+- Volume buttons adjust ALSA volume using the configured or auto-detected mixer control.
 - The status indicator polls `_status.php` every five seconds.
 - Settings opens NHL automation controls.
 
@@ -407,6 +407,7 @@ RELAY_PINS = [7, 8]
 RELAY_ACTIVE_LOW = True
 RELAY_DURATION = 30
 AUDIO_CARD = os.environ.get('BLUESGOAL_AUDIO_CARD', '1')
+AUDIO_MIXER_CONTROL = os.environ.get('BLUESGOAL_AUDIO_MIXER_CONTROL', '')
 VOLUME_STEP = os.environ.get('BLUESGOAL_VOLUME_STEP', '5dB')
 AUDIO_PLAYER = os.environ.get('BLUESGOAL_AUDIO_PLAYER', 'mpg321')
 ```
@@ -431,6 +432,7 @@ Supported environment variables:
 - `BLUESGOAL_MP3_DIR`, default `$BLUESGOAL_BASE_PATH/mp3`
 - `BLUESGOAL_LOG_DIR`, default `$BLUESGOAL_BASE_PATH/logs`
 - `BLUESGOAL_AUDIO_CARD`, default `1`
+- `BLUESGOAL_AUDIO_MIXER_CONTROL`, default empty for auto-detect
 - `BLUESGOAL_VOLUME_STEP`, default `5dB`
 - `BLUESGOAL_AUDIO_PLAYER`, default `mpg321`
 - `BLUESGOAL_DATA_DIR`, default `/var/lib/bluesgoal`
@@ -438,7 +440,7 @@ Supported environment variables:
 - `BLUESGOAL_WORKER_LOG_DIR`, default `/var/log/bluesgoal`
 - `BLUESGOAL_TIMEZONE`, default `America/Chicago`
 
-Current limitation: the ALSA mixer control name is still hard-coded as `PCM` in the volume and status scripts. If your device uses a different mixer control, update those scripts until that setting is moved into configuration.
+Volume and status scripts auto-detect a mixer control from common names such as `PCM`, `Master`, `Headphone`, `Speaker`, and `Digital`. Set `BLUESGOAL_AUDIO_MIXER_CONTROL` if your device needs a specific mixer name.
 
 ## Project Structure
 
@@ -575,11 +577,13 @@ There is not yet a non-hardware automated regression test suite. Good future tes
 
 ### Volume Control Fails
 
-- Open `alsamixer` and confirm the device exposes a `PCM` control.
-- Test the active command: `amixer -c 1 set PCM 5dB+`
-- Test readback: `amixer -c 1 get PCM`
+- Open `alsamixer` and confirm which mixer controls the device exposes.
+- List controls: `amixer -c 1 scontrols`
+- Test a specific control, for example: `amixer -c 1 set Master 5dB+`
+- Test readback, for example: `amixer -c 1 get Master`
 - If the command fails, the web endpoint should now return an action failure instead of false success.
 - If your card number differs, set `BLUESGOAL_AUDIO_CARD` for the Apache/PHP environment or update `AUDIO_CARD` in `config.py`.
+- If auto-detection picks the wrong control, set `BLUESGOAL_AUDIO_MIXER_CONTROL`, for example `Master`.
 
 ### LEDs Do Not Strobe
 
@@ -648,12 +652,11 @@ sudo systemd-tmpfiles --create /etc/tmpfiles.d/bluesgoal.conf
 Current cleanup opportunities:
 
 1. Replace broad passwordless `www-data` Python sudo with a narrow runner-specific sudo rule or root-owned hardware-control service.
-2. Move the ALSA mixer control name, currently `PCM`, into configuration.
+2. Add non-hardware automated tests.
 3. Rename `test_gpio_simutaneous.py` to `test_gpio_simultaneous.py`.
-4. Add non-hardware automated tests.
-5. Rotate or bound activity and error logs.
-6. Split inline JavaScript/CSS out of HTML if the UI grows.
-7. Remove or archive legacy scripts under `goalhorn/unused/` and `goalhorn/volume/old_volume_controls/` when no longer needed.
+4. Rotate or bound activity and error logs.
+5. Split inline JavaScript/CSS out of HTML if the UI grows.
+6. Remove or archive legacy scripts under `goalhorn/unused/` and `goalhorn/volume/old_volume_controls/` when no longer needed.
 
 ## Recent Changes
 

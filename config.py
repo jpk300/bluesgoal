@@ -29,6 +29,7 @@ RELAY_DURATION = 30  # seconds
 # AUDIO SETTINGS
 # ============================================================================
 AUDIO_CARD = os.environ.get('BLUESGOAL_AUDIO_CARD', '1')  # ALSA card number
+AUDIO_MIXER_CONTROL = os.environ.get('BLUESGOAL_AUDIO_MIXER_CONTROL', '')  # Empty = auto-detect
 VOLUME_STEP = os.environ.get('BLUESGOAL_VOLUME_STEP', '5dB')  # Step size for volume control
 AUDIO_PLAYER = os.environ.get('BLUESGOAL_AUDIO_PLAYER', 'mpg321')  # Command to use for audio playback
 

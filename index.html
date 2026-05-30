@@ -211,7 +211,10 @@ document.querySelectorAll('[data-action]').forEach((button) => {
                         showNotification('✓ ' + (data.message || 'Action completed'), 'success');
                     } else {
                         // Show error feedback
-                        showNotification('✗ ' + (data.error || 'Action failed'), 'error');
+                        const errorMessage = data.details
+                            ? `${data.error || 'Action failed'}: ${data.details.split('\n')[0]}`
+                            : (data.error || 'Action failed');
+                        showNotification('✗ ' + errorMessage, 'error');
 
                         // Show retry information if available
                         if (data.retry_after) {
