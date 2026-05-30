@@ -27,7 +27,8 @@ def relay_off_level():
 
 def stop_audio():
     """Stop any existing audio player process before starting a new horn."""
-    subprocess.run(["pkill", "-f", AUDIO_PLAYER], stderr=subprocess.DEVNULL, check=False)
+    player_name = Path(AUDIO_PLAYER).name
+    subprocess.run(["pkill", "-x", player_name], stderr=subprocess.DEVNULL, check=False)
     time.sleep(0.25)
 
 

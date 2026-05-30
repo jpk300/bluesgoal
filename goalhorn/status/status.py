@@ -7,21 +7,32 @@ Return current audio state and ALSA volume as JSON for the web UI.
 import json
 import re
 import subprocess
+import sys
 from datetime import datetime
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from config import AUDIO_CARD, AUDIO_PLAYER
 
 
 def run_command(args):
-    return subprocess.run(
-        args,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        check=False,
-    )
+    try:
+        return subprocess.run(
+            args,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False,
+        )
+    except FileNotFoundError as error:
+        return subprocess.CompletedProcess(args, 127, stdout='', stderr=str(error))
 
 
 def get_volume():
-    result = run_command(['amixer', '-c', '1', 'get', 'PCM'])
+    result = run_command(['amixer', '-c', str(AUDIO_CARD), 'get', 'PCM'])
     if result.returncode != 0:
         return 'unknown'
 
@@ -33,7 +44,8 @@ def get_volume():
 
 
 def is_audio_playing():
-    result = run_command(['pgrep', '-f', 'mpg321'])
+    player_name = Path(AUDIO_PLAYER).name
+    result = run_command(['pgrep', '-x', player_name])
     return result.returncode == 0
 
 

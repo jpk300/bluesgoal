@@ -88,7 +88,7 @@
 
                 if (data.success && data.data) {
                     // Update volume display
-                    if (data.data.volume && data.data.volume !== 'unknown') {
+                    if (data.data.volume !== undefined && data.data.volume !== null && data.data.volume !== 'unknown') {
                         updateVolumeDisplay(data.data.volume);
                     }
 
