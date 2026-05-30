@@ -63,16 +63,7 @@
 
     <script>
         const NHL_FEED_STATUS_URL = 'goalhorn/_nhl_feed.php';
-        const TEAM_LABELS = {
-            ANA: 'Anaheim Ducks', BOS: 'Boston Bruins', BUF: 'Buffalo Sabres', CAR: 'Carolina Hurricanes',
-            CBJ: 'Columbus Blue Jackets', CGY: 'Calgary Flames', CHI: 'Chicago Blackhawks', COL: 'Colorado Avalanche',
-            DAL: 'Dallas Stars', DET: 'Detroit Red Wings', EDM: 'Edmonton Oilers', FLA: 'Florida Panthers',
-            LAK: 'Los Angeles Kings', MIN: 'Minnesota Wild', MTL: 'Montreal Canadiens', NJD: 'New Jersey Devils',
-            NSH: 'Nashville Predators', NYI: 'New York Islanders', NYR: 'New York Rangers', OTT: 'Ottawa Senators',
-            PHI: 'Philadelphia Flyers', PIT: 'Pittsburgh Penguins', SEA: 'Seattle Kraken', SJS: 'San Jose Sharks',
-            STL: 'St. Louis Blues', TBL: 'Tampa Bay Lightning', TOR: 'Toronto Maple Leafs', UTA: 'Utah Mammoth',
-            VAN: 'Vancouver Canucks', VGK: 'Vegas Golden Knights', WPG: 'Winnipeg Jets', WSH: 'Washington Capitals'
-        };
+        let teamLabels = {};
 
         const feedToggle = document.querySelector('[data-feed-toggle]');
         const feedStatus = document.querySelector('[data-feed-status]');
@@ -83,7 +74,7 @@
         const triggersExpected = document.querySelector('[data-triggers-expected]');
         const watchedGame = document.querySelector('[data-watched-game]');
         const nextGameStart = document.querySelector('[data-next-game-start]');
-	
+
         function workerPendingText(payload) {
             const data = payload.data || {};
             if (!payload.enabled) {
@@ -153,13 +144,15 @@
         function renderStatus(payload) {
             const data = payload.data || {};
             const settings = payload.settings || {};
-            const teams = payload.teams || Object.keys(TEAM_LABELS);
+            const teams = payload.teams || Object.keys(teamLabels);
+
+            teamLabels = payload.team_labels || teamLabels || {};
 
             if (!teamSelect.options.length) {
                 teams.forEach((team) => {
                     const option = document.createElement('option');
                     option.value = team;
-                    option.textContent = `${team} - ${TEAM_LABELS[team] || team}`;
+                    option.textContent = `${team} - ${teamLabels[team] || team}`;
                     teamSelect.appendChild(option);
                 });
             }
@@ -169,7 +162,7 @@
             feedStatus.textContent = data.message || payload.message || 'Manual buttons only';
             currentPoll.textContent = formatSeconds(data.current_poll_seconds || data.schedule_poll_seconds, payload);
             nextPoll.textContent = formatNextPoll(data, payload);
-            gameToday.textContent = typeof data.game_today === 'boolean' ? (data.game_today ? 'Yes' : 'No') : workerPendingText(payload); 
+            gameToday.textContent = typeof data.game_today === 'boolean' ? (data.game_today ? 'Yes' : 'No') : workerPendingText(payload);
             triggersExpected.textContent = typeof data.triggers_expected === 'boolean' ? (data.triggers_expected ? 'Expected if this team scores' : 'Not currently expected') : workerPendingText(payload);
             watchedGame.textContent = data.game || data.watched_game_id || 'None';
             nextGameStart.textContent = formatDateTime(data.next_game_start_utc) || 'None scheduled';

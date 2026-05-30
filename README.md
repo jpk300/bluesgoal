@@ -505,16 +505,16 @@ When the settings page shows `Waiting for worker status`, `Starting worker`, or 
 curl -s http://bluesgoal.home.local/goalhorn/_nhl_feed.php | jq .
 
 # 2. Inspect the worker status file
-sudo cat /tmp/bluesgoal_nhl_feed_status.json | jq .
+sudo cat /run/bluesgoal/nhl_feed_status.json | jq .
 
 # 3. Verify the feed is enabled (1 = enabled)
-sudo cat /tmp/bluesgoal_nhl_feed_enabled
+sudo cat /var/lib/bluesgoal/nhl_feed_enabled
 
 # 4. Confirm the worker process is running
 pgrep -af 'goalhorn/nhl_feed/nhl_feed.py'
 
 # 5. Watch worker startup logs
-sudo tail -f /tmp/bluesgoal_nhl_feed.log
+sudo tail -f /var/log/bluesgoal/nhl_feed.log
 
 # 6. Watch NHL-specific activity entries
 sudo tail -f /var/www/html/logs/history.log | grep nhl
