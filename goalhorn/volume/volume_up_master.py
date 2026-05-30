@@ -6,5 +6,5 @@ from pathlib import Path
 
 GOALHORN_DIR = Path(__file__).resolve().parents[1]
 
-subprocess.run(['python3', str(GOALHORN_DIR / 'volume' / 'volume_up.py')], check=False)
+subprocess.run(['python3', '-B', str(GOALHORN_DIR / 'volume' / 'volume_up.py')], check=False)
 time.sleep(1)

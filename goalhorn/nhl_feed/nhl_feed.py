@@ -152,7 +152,7 @@ def update_status(**updates):
 def log_activity(action, message):
     if os.path.exists(LOG_ACTIVITY_SCRIPT):
         subprocess.Popen(
-            ["python3", LOG_ACTIVITY_SCRIPT, action, message],
+            ["python3", "-B", LOG_ACTIVITY_SCRIPT, action, message],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
         )
@@ -297,7 +297,7 @@ def trigger_winter_classic(source_team, game_id, event_id):
     action_lock = acquire_lock(ACTION_LOCK_FILE, blocking=True)
     try:
         result = subprocess.run(
-            ["sudo", "-n", "python3", ACTION_RUNNER_SCRIPT, "bluesgoal_winterclassic"],
+            ["sudo", "-n", "python3", "-B", ACTION_RUNNER_SCRIPT, "bluesgoal_winterclassic"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

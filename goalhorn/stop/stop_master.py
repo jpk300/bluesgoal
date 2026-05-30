@@ -26,5 +26,5 @@ finally:
     except Exception:
         pass
 
-subprocess.run(['python3', str(GOALHORN_DIR / 'stop' / 'stop.py')], check=False)
+subprocess.run(['python3', '-B', str(GOALHORN_DIR / 'stop' / 'stop.py')], check=False)
 print('Audio stopped')

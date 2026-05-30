@@ -22,7 +22,7 @@ function goalhorn_json_response($statusCode, $payload) {
 }
 
 function goalhorn_log_activity($action, $message) {
-    $command = 'python3 /var/www/html/log_activity.py '
+    $command = 'python3 -B /var/www/html/log_activity.py '
         . escapeshellarg($action) . ' '
         . escapeshellarg($message)
         . ' 2>/dev/null &';
@@ -72,7 +72,7 @@ function goalhorn_run_python_action($action, $message, $scriptPath, $useLock = t
 
     $outputLines = [];
     $exitCode = 0;
-    $command = 'sudo -n python3 ' . escapeshellarg($scriptPath);
+    $command = 'sudo -n python3 -B ' . escapeshellarg($scriptPath);
     foreach ($scriptArgs as $arg) {
         $command .= ' ' . escapeshellarg($arg);
     }

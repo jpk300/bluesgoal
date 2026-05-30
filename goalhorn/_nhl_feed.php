@@ -169,7 +169,7 @@ function nhl_feed_recent_start_attempt($seconds = 30) {
 function nhl_feed_worker_sudo_error() {
     $output = [];
     $exitCode = 0;
-    exec('sudo -n python3 -c ' . escapeshellarg('import sys') . ' 2>&1', $output, $exitCode);
+    exec('sudo -n python3 -B -c ' . escapeshellarg('import sys') . ' 2>&1', $output, $exitCode);
     return $exitCode === 0 ? null : trim(implode("\n", $output));
 }
 
@@ -219,7 +219,7 @@ function nhl_feed_start_worker() {
         'last_worker_start_attempt_at' => gmdate('c')
     ]);
 
-    $command = 'nohup sudo -n python3 ' . escapeshellarg($script)
+    $command = 'nohup sudo -n python3 -B ' . escapeshellarg($script)
         . ' >> ' . escapeshellarg(NHL_FEED_LOG)
         . ' 2>&1 &';
     @shell_exec($command);
