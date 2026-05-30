@@ -10,19 +10,35 @@ if str(REPO_ROOT) not in sys.path:
 
 from config import AUDIO_CARD, VOLUME_STEP
 
-subprocess.run([
+def run_amixer(args):
+    result = subprocess.run(
+        args,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        check=False,
+    )
+    if result.stdout:
+        print(result.stdout, end="")
+    if result.stderr:
+        print(result.stderr, end="", file=sys.stderr)
+    if result.returncode != 0:
+        raise SystemExit(result.returncode)
+
+
+run_amixer([
     "amixer",
     "-c",
     str(AUDIO_CARD),
     "set",
     "PCM",
-    f"{VOLUME_STEP}+"
+    f"{VOLUME_STEP}+",
 ])
 
-subprocess.run([
+run_amixer([
     "amixer",
     "-c",
     str(AUDIO_CARD),
     "get",
-    "PCM"
+    "PCM",
 ])

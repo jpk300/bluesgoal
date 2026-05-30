@@ -3,8 +3,24 @@
  * Shared helpers for goalhorn JSON endpoints.
  */
 
-const GOALHORN_RUN_DIR = '/run/bluesgoal';
-const GOALHORN_ACTION_LOCK_FILE = GOALHORN_RUN_DIR . '/action.lock';
+const GOALHORN_APP_ROOT = __DIR__ . '/..';
+
+define('GOALHORN_RUN_DIR', getenv('BLUESGOAL_RUN_DIR') ?: '/run/bluesgoal');
+define('GOALHORN_ACTION_LOCK_FILE', GOALHORN_RUN_DIR . '/action.lock');
+
+function goalhorn_path($relativePath) {
+    return GOALHORN_APP_ROOT . '/' . ltrim($relativePath, '/');
+}
+
+function goalhorn_require_post() {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+        goalhorn_json_response(405, [
+            'success' => false,
+            'error' => 'Method not allowed',
+            'timestamp' => date('Y-m-d H:i:s')
+        ]);
+    }
+}
 
 function goalhorn_ensure_run_dir() {
     if (is_dir(GOALHORN_RUN_DIR)) {
@@ -22,7 +38,7 @@ function goalhorn_json_response($statusCode, $payload) {
 }
 
 function goalhorn_log_activity($action, $message) {
-    $command = 'python3 -B /var/www/html/log_activity.py '
+    $command = 'python3 -B ' . escapeshellarg(goalhorn_path('log_activity.py')) . ' '
         . escapeshellarg($action) . ' '
         . escapeshellarg($message)
         . ' 2>/dev/null &';

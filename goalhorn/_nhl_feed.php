@@ -1,16 +1,17 @@
 <?php
 require_once __DIR__ . '/_helpers.php';
 
-const BLUESGOAL_DATA_DIR = '/var/lib/bluesgoal';
-const BLUESGOAL_RUN_DIR = '/run/bluesgoal';
-const BLUESGOAL_LOG_DIR = '/var/log/bluesgoal';
 const NHL_TEAMS_FILE = __DIR__ . '/../config/nhl_teams.json';
 
-const NHL_FEED_ENABLED_FILE = BLUESGOAL_DATA_DIR . '/nhl_feed_enabled';
-const NHL_FEED_SETTINGS_FILE = BLUESGOAL_DATA_DIR . '/nhl_feed_settings.json';
-const NHL_FEED_STATUS_FILE = BLUESGOAL_RUN_DIR . '/nhl_feed_status.json';
-const NHL_FEED_STATE_FILE = BLUESGOAL_DATA_DIR . '/nhl_feed_state.json';
-const NHL_FEED_LOG = BLUESGOAL_LOG_DIR . '/nhl_feed.log';
+define('BLUESGOAL_DATA_DIR', getenv('BLUESGOAL_DATA_DIR') ?: '/var/lib/bluesgoal');
+define('BLUESGOAL_RUN_DIR', getenv('BLUESGOAL_RUN_DIR') ?: '/run/bluesgoal');
+define('BLUESGOAL_LOG_DIR', getenv('BLUESGOAL_WORKER_LOG_DIR') ?: '/var/log/bluesgoal');
+
+define('NHL_FEED_ENABLED_FILE', BLUESGOAL_DATA_DIR . '/nhl_feed_enabled');
+define('NHL_FEED_SETTINGS_FILE', BLUESGOAL_DATA_DIR . '/nhl_feed_settings.json');
+define('NHL_FEED_STATUS_FILE', BLUESGOAL_RUN_DIR . '/nhl_feed_status.json');
+define('NHL_FEED_STATE_FILE', BLUESGOAL_DATA_DIR . '/nhl_feed_state.json');
+define('NHL_FEED_LOG', BLUESGOAL_LOG_DIR . '/nhl_feed.log');
 
 const LEGACY_NHL_FEED_ENABLED_FILE = '/tmp/bluesgoal_nhl_feed_enabled';
 const LEGACY_NHL_FEED_SETTINGS_FILE = '/tmp/bluesgoal_nhl_feed_settings.json';
@@ -219,7 +220,10 @@ function nhl_feed_start_worker() {
         'last_worker_start_attempt_at' => gmdate('c')
     ]);
 
-    $command = 'nohup sudo -n python3 -B ' . escapeshellarg($script)
+    $command = 'BLUESGOAL_DATA_DIR=' . escapeshellarg(BLUESGOAL_DATA_DIR)
+        . ' BLUESGOAL_RUN_DIR=' . escapeshellarg(BLUESGOAL_RUN_DIR)
+        . ' BLUESGOAL_WORKER_LOG_DIR=' . escapeshellarg(BLUESGOAL_LOG_DIR)
+        . ' nohup python3 -B ' . escapeshellarg($script)
         . ' >> ' . escapeshellarg(NHL_FEED_LOG)
         . ' 2>&1 &';
     @shell_exec($command);

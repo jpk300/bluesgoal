@@ -5,7 +5,7 @@
 
 A local Raspberry Pi web app for St. Louis Blues goal celebrations. The app provides a touch-friendly Apache/PHP interface that triggers goal horn audio, GPIO-controlled LED strobes, stop and volume controls, activity logging, and optional NHL API goal detection.
 
-> **Deployment assumption:** v2.1.0 still expects the application files to live directly in Apache's default document root: `/var/www/html`. Core Python scripts now support environment overrides for several paths and audio settings, but PHP entrypoints still invoke some `/var/www/html/...` paths, so installing into `/var/www/html/bluesgoal` still requires additional code/config changes or symlinks.
+> **Deployment assumption:** The recommended install path is still Apache's default document root, `/var/www/html`, because the helper scripts and examples use that layout. PHP action entrypoints now resolve scripts relative to their own location, so alternate document roots are easier to support when `DOC_ROOT` and the Python environment variables below are set consistently.
 
 ## Overview
 
@@ -38,6 +38,9 @@ sudo rsync -a --delete --exclude .git --exclude mp3 --exclude images --exclude l
 
 # Create local asset/app runtime directories and apply permissions
 sudo scripts/setup_permissions.sh
+
+# Optional but recommended: start NHL automation on boot when enabled
+sudo scripts/install_nhl_feed_service.sh
 
 # Add your required image and audio assets, then open:
 # http://bluesgoal.home.local
@@ -212,7 +215,30 @@ www-data ALL=(ALL) NOPASSWD: /usr/bin/python3
 
 Avoid granting `/usr/bin/python` unless you still need Python 2 legacy scripts. The active v2.1.0 scripts use Python 3.
 
-### 7. Set File Permissions
+### 7. Install NHL Feed Boot Service
+
+If you use the optional NHL API feed, install the systemd service so an enabled feed starts after reboot without needing to open the settings page:
+
+```bash
+sudo scripts/install_nhl_feed_service.sh
+```
+
+For a non-default document root:
+
+```bash
+sudo DOC_ROOT=/path/to/bluesgoal scripts/install_nhl_feed_service.sh
+```
+
+The installer writes `/etc/systemd/system/bluesgoal-nhl-feed.service`, enables it, starts it immediately, and runs the worker as `www-data`. The worker exits cleanly when the feed is disabled and runs at boot when `/var/lib/bluesgoal/nhl_feed_enabled` contains `1`.
+
+Useful service commands:
+
+```bash
+sudo systemctl status bluesgoal-nhl-feed.service
+sudo journalctl -u bluesgoal-nhl-feed.service -f
+```
+
+### 8. Set File Permissions
 
 For a fresh install, run the helper script after deploying files and creating the runtime directories:
 
@@ -397,7 +423,7 @@ bluesgoal/
 ### Manual Button Flow
 
 1. The user taps a control on `index.html`.
-2. JavaScript prevents page navigation and sends a `fetch()` request to the corresponding PHP endpoint.
+2. JavaScript prevents page navigation and sends a `POST` `fetch()` request to the corresponding PHP endpoint.
 3. The PHP helper attempts to acquire `/run/bluesgoal/action.lock` for horn actions.
 4. The PHP endpoint logs the action and runs `goalhorn/action_runner.py` with a validated sound action using non-interactive `sudo -n python3 -B`. The `-B` flag prevents Python bytecode caches in the web root.
 5. The shared action runner loads `config.py`, validates the requested action against `SOUNDS`, resolves the MP3 path, configures BOARD pins 7 and 8 as outputs, drives them LOW to activate active-low relays, stops any existing `mpg321` process, starts the selected MP3, keeps relays active for the configured duration, drives pins HIGH, and cleans up GPIO.
@@ -407,13 +433,14 @@ bluesgoal/
 
 ### NHL API Integration (Optional)
 
-When enabled, the PHP settings endpoint starts a background Python worker that:
+When enabled, the PHP settings endpoint can start a background Python worker immediately. For reboot-safe operation, `scripts/install_nhl_feed_service.sh` installs `bluesgoal-nhl-feed.service`, which starts the worker on boot and lets it run only while the feed is enabled. The worker:
 
 1. Reads the selected source team from `/var/lib/bluesgoal/nhl_feed_settings.json`.
 2. Polls the NHL API for schedule and play-by-play data.
 3. Establishes a baseline of already-seen goal events to avoid replaying old goals.
 4. Triggers the Winter Classic horn through the shared action runner when a new goal for the selected team is detected.
 5. Writes transient status to `/run/bluesgoal/nhl_feed_status.json`, durable state to `/var/lib/bluesgoal/nhl_feed_state.json`, worker logs to `/var/log/bluesgoal/nhl_feed.log`, and app activity to `/var/www/html/logs/history.log`.
+6. Calculates `game_today` using `BLUESGOAL_TIMEZONE`, which defaults to `America/Chicago`.
 
 > **Runtime-state note:** v2.1.0 uses `/var/lib/bluesgoal` for durable NHL feed state/settings, `/run/bluesgoal` for transient locks/status, and `/var/log/bluesgoal` for NHL worker logs. Legacy `/tmp/bluesgoal_*` files may be copied forward if present, but `/tmp` is no longer the active runtime location.
 
@@ -431,6 +458,10 @@ RELAY_DURATION = 30
 AUDIO_CARD = os.environ.get('BLUESGOAL_AUDIO_CARD', '1')
 VOLUME_STEP = os.environ.get('BLUESGOAL_VOLUME_STEP', '5dB')
 AUDIO_PLAYER = os.environ.get('BLUESGOAL_AUDIO_PLAYER', 'mpg321')
+BLUESGOAL_DATA_DIR = '/var/lib/bluesgoal'
+BLUESGOAL_RUN_DIR = '/run/bluesgoal'
+BLUESGOAL_WORKER_LOG_DIR = '/var/log/bluesgoal'
+BLUESGOAL_TIMEZONE = 'America/Chicago'
 SOUNDS = {
     'powerplay': 'powerplay.mp3',
     'bluesgoal_winterclassic': 'bluesgoal_winterclassic.mp3',
@@ -440,7 +471,7 @@ SOUNDS = {
 }
 ```
 
-> **Current limitation:** Goal horn sound actions, status, stop, and volume scripts use `config.py` for the shared values above. Some PHP entrypoints still hard-code `/var/www/html` when invoking scripts, and the ALSA mixer control name is still `PCM`; if changing install paths or mixer controls, search the codebase for those hard-coded values until the remaining config refactor is complete.
+> **Current limitation:** Goal horn sound actions, status, stop, and volume scripts use `config.py` for the shared values above, and PHP entrypoints resolve scripts relative to the app root. The ALSA mixer control name is still `PCM`; if changing mixer controls, update the status and volume scripts until that value is moved into configuration.
 
 ## GPIO Pin Usage
 
@@ -608,6 +639,7 @@ There is not yet a non-hardware automated regression test suite. Recommended fut
 - Check ALSA mixer setup: `alsamixer`.
 - Verify available cards: `cat /proc/asound/cards`.
 - Test the hard-coded current command: `amixer -c 1 set PCM 5dB+`.
+- If the command fails, the web endpoint now returns an action failure instead of a false success.
 - If your card/control differs, update the volume and status scripts or complete the config refactor.
 
 ### Status API Returns `unknown` Volume
@@ -640,25 +672,28 @@ sudo cat /var/lib/bluesgoal/nhl_feed_enabled
 # 4. Confirm the worker process is running
 pgrep -af 'goalhorn/nhl_feed/nhl_feed.py'
 
-# 5. Watch worker startup logs
+# 5. Check the boot service
+sudo systemctl status bluesgoal-nhl-feed.service
+
+# 6. Watch worker startup logs
 sudo tail -f /var/log/bluesgoal/nhl_feed.log
 
-# 6. Watch NHL-specific activity entries
+# 7. Watch NHL-specific activity entries
 sudo tail -f /var/www/html/logs/history.log | grep nhl
 
-# 7. Check app-level logger errors
+# 8. Check app-level logger errors
 sudo tail -f /var/www/html/logs/error.log
 
-# 8. Check Apache/PHP errors
+# 9. Check Apache/PHP errors
 sudo tail -f /var/log/apache2/error.log
 
-# 9. Verify sudoers is configured for Python
+# 10. Verify sudoers is configured for Python
 sudo -u www-data sudo -n python3 -B -c 'print("sudo ok")'
 ```
 
-If sudoers verification fails, revisit the sudoers setup and ensure `www-data` has passwordless access to `/usr/bin/python3`. After fixing, toggle the NHL API feed off and back on in settings.
+If sudoers verification fails, revisit the sudoers setup and ensure `www-data` has passwordless access to `/usr/bin/python3`. After fixing, restart the service or toggle the NHL API feed off and back on in settings.
 
-**Note on `/run/bluesgoal`:** `/run` is usually recreated on reboot. If action locking or NHL feed status fails after a restart, recreate `/run/bluesgoal` with the runtime-directory commands above, or add a `tmpfiles.d` rule/startup step to create it automatically. The most reliable live status check is usually:
+**Note on `/run/bluesgoal`:** `/run` is usually recreated on reboot. `scripts/setup_permissions.sh` installs a `tmpfiles.d` rule when available, and `scripts/install_nhl_feed_service.sh` also creates the runtime directory before installing the service. The most reliable live status check is usually:
 
 ```bash
 curl -s http://localhost/goalhorn/_nhl_feed.php | jq .
@@ -675,13 +710,11 @@ sudo systemd-tmpfiles --create /etc/tmpfiles.d/bluesgoal.conf
 
 These are known v2.1.0 cleanup opportunities:
 
-1. Finish removing hard-coded `/var/www/html` paths from PHP entrypoints and deployment docs.
-2. Replace broad `www-data` passwordless Python sudo with a narrow runner-specific sudo rule or systemd service.
-3. Rename `test_gpio_simutaneous.py` to `test_gpio_simultaneous.py`.
-4. Add non-hardware automated tests.
-5. Rotate or bound activity/error logs.
-6. Split inline JavaScript/CSS into static assets as the UI grows.
-7. Add startup automation, such as `tmpfiles.d`, to recreate `/run/bluesgoal` after reboot.
+1. Replace broad `www-data` passwordless Python sudo with a narrow runner-specific sudo rule or root-owned hardware service.
+2. Rename `test_gpio_simutaneous.py` to `test_gpio_simultaneous.py`.
+3. Add non-hardware automated tests.
+4. Rotate or bound activity/error logs.
+5. Split inline JavaScript/CSS into static assets as the UI grows.
 
 ## Recent Updates
 

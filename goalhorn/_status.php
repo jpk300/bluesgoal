@@ -6,7 +6,9 @@
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 
-$PYTHON_SCRIPT = '/var/www/html/goalhorn/status/status.py';
+require_once __DIR__ . '/_helpers.php';
+
+$PYTHON_SCRIPT = goalhorn_path('goalhorn/status/status.py');
 $output = shell_exec('python3 -B ' . escapeshellarg($PYTHON_SCRIPT) . ' 2>&1');
 
 if ($output === null) {

@@ -10,6 +10,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from zoneinfo import ZoneInfo
 
 try:
     import fcntl
@@ -25,10 +26,11 @@ PRE_GAME_WAKE_SECONDS = 10 * 60
 PRE_GAME_POLL_SECONDS = 30
 LIVE_POLL_SECONDS = 3
 HTTP_TIMEOUT_SECONDS = 8
+LOCAL_TIMEZONE = ZoneInfo(os.environ.get("BLUESGOAL_TIMEZONE", "America/Chicago"))
 
-DATA_DIR = Path("/var/lib/bluesgoal")
-RUN_DIR = Path("/run/bluesgoal")
-LOG_DIR = Path("/var/log/bluesgoal")
+DATA_DIR = Path(os.environ.get("BLUESGOAL_DATA_DIR", "/var/lib/bluesgoal"))
+RUN_DIR = Path(os.environ.get("BLUESGOAL_RUN_DIR", "/run/bluesgoal"))
+LOG_DIR = Path(os.environ.get("BLUESGOAL_WORKER_LOG_DIR", "/var/log/bluesgoal"))
 ENABLED_FILE = DATA_DIR / "nhl_feed_enabled"
 SETTINGS_FILE = DATA_DIR / "nhl_feed_settings.json"
 STATUS_FILE = RUN_DIR / "nhl_feed_status.json"
@@ -52,6 +54,10 @@ FINISHED_STATES = {"FINAL", "OFF"}
 
 def utc_now():
     return dt.datetime.now(dt.timezone.utc)
+
+
+def local_today():
+    return utc_now().astimezone(LOCAL_TIMEZONE).date()
 
 
 def iso_now():
@@ -188,11 +194,11 @@ def score_line(game):
 
 
 def has_game_today(schedule, source_team):
-    today = utc_now().date()
+    today = local_today()
     for game in schedule.get("games", []):
         if monitored_team_id(game, source_team) is None:
             continue
-        start_time = parse_utc(game["startTimeUTC"])
+        start_time = parse_utc(game["startTimeUTC"]).astimezone(LOCAL_TIMEZONE)
         if start_time.date() == today and game.get("gameState", "") not in FINISHED_STATES:
             return True
     return False

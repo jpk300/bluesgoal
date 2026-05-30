@@ -196,6 +196,7 @@ document.querySelectorAll('[data-action]').forEach((button) => {
 
                 try {
                     const response = await fetch(button.href, {
+                        method: 'POST',
                         cache: 'no-store',
                         credentials: 'same-origin'
                     });
