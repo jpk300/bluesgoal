@@ -406,7 +406,7 @@ LOG_DIR = os.environ.get('BLUESGOAL_LOG_DIR', os.path.join(BASE_PATH, 'logs'))
 RELAY_PINS = [7, 8]
 RELAY_ACTIVE_LOW = True
 RELAY_DURATION = 30
-AUDIO_CARD = os.environ.get('BLUESGOAL_AUDIO_CARD', '1')
+AUDIO_CARD = os.environ.get('BLUESGOAL_AUDIO_CARD', '0')
 AUDIO_MIXER_CONTROL = os.environ.get('BLUESGOAL_AUDIO_MIXER_CONTROL', '')
 VOLUME_STEP = os.environ.get('BLUESGOAL_VOLUME_STEP', '5dB')
 AUDIO_PLAYER = os.environ.get('BLUESGOAL_AUDIO_PLAYER', 'mpg321')
@@ -431,7 +431,7 @@ Supported environment variables:
 - `BLUESGOAL_BASE_PATH`, default `/var/www/html`
 - `BLUESGOAL_MP3_DIR`, default `$BLUESGOAL_BASE_PATH/mp3`
 - `BLUESGOAL_LOG_DIR`, default `$BLUESGOAL_BASE_PATH/logs`
-- `BLUESGOAL_AUDIO_CARD`, default `1`
+- `BLUESGOAL_AUDIO_CARD`, default `0`
 - `BLUESGOAL_AUDIO_MIXER_CONTROL`, default empty for auto-detect
 - `BLUESGOAL_VOLUME_STEP`, default `5dB`
 - `BLUESGOAL_AUDIO_PLAYER`, default `mpg321`
