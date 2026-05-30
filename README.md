@@ -1,289 +1,309 @@
 # St. Louis Blues Goal Horn Web App
 
-**Last updated:** May 29, 2026  
+**Last updated:** May 30, 2026
 **Current Version:** v2.1.0
 
-A web-based goal horn and celebration system running on a Raspberry Pi that plays music and triggers LED strobing effects when the St. Louis Blues score a goal. Features both manual button control and automatic NHL API integration.
+A local Raspberry Pi web app for St. Louis Blues goal celebrations. The app provides a touch-friendly Apache/PHP interface that triggers goal horn audio, GPIO-controlled LED strobes, stop and volume controls, activity logging, and optional NHL API goal detection.
+
+> **Deployment assumption:** v2.1.0 expects the application files to live directly in Apache's default document root: `/var/www/html`. Several scripts still use hard-coded `/var/www/html/...` paths, so installing into `/var/www/html/bluesgoal` requires code/config changes or symlinks.
 
 ## Overview
 
-This application is a Python/PHP web app deployed on Apache2 that provides an intuitive touch-friendly interface to play various goal horn sounds, activate synchronized LED strobing lights, and optionally monitor the NHL API for automatic goal detection. Perfect for Blues fans who want an interactive celebration experience.
+This project is a small Python/PHP application intended for a trusted home LAN. PHP endpoints receive button/API requests from the web UI, then invoke Python scripts that control audio playback, Raspberry Pi GPIO pins, volume, logging, and the optional NHL feed worker.
 
-**Language Composition:**
-- Python (50.8%) - Backend audio/GPIO control
-- HTML (24.1%) - Web interface markup
-- PHP (14.2%) - Apache endpoints and integrations
-- CSS (10.9%) - Responsive styling
+**Primary components:**
+- **Python** - Audio, GPIO, status, logging, volume, and NHL worker logic
+- **PHP** - Apache-accessible JSON endpoints and action dispatch
+- **HTML/CSS/JavaScript** - Main control page and settings page
+- **Local assets** - User-provided images and MP3 files excluded from Git
 
 ## Quick Start
 
 ```bash
-# Clone to Apache web root
-cd /var/www/html
-sudo git clone https://github.com/jpk300/bluesgoal.git
+# Install system dependencies
+sudo apt-get update
+sudo apt-get install python3 git apache2 php mpg321 alsa-utils python3-rpi.gpio rsync
+
+# Deploy this branch directly into Apache's document root
+cd /tmp
+git clone https://github.com/jpk300/bluesgoal.git bluesgoal
 cd bluesgoal
 git checkout v2.1.0
+sudo rsync -a --delete --exclude .git --exclude mp3 --exclude images --exclude logs ./ /var/www/html/
 
-# Install dependencies
-sudo apt-get install python3 python3-pip apache2 mpg321 php python3-rpi.gpio
-sudo pip3 install alsaaudio
+# Create local asset/runtime directories
+sudo mkdir -p /var/www/html/mp3 /var/www/html/images /var/www/html/logs
+sudo chown -R www-data:www-data /var/www/html/logs
+sudo chmod 755 /var/www/html/logs
 
-# Create logs directory
-sudo mkdir -p /var/www/html/logs
-sudo chown www-data:www-data /var/www/html/logs
-
-# Access the app
-http://bluesgoal.home.local
+# Add your required image and audio assets, then open:
+# http://bluesgoal.home.local
+# or http://<raspberry-pi-ip>
 ```
 
 ## Features
 
 ### Audio & Strobe Control
 - **5 Goal Horn Variations**: Power Play, Winter Classic, Old School, Marching In, Marching In (Glenn)
-- **LED Strobing Effects**: Synchronized LED strobing via GPIO pins (pins 7 & 8) with active-low relay support
-- **Stop Button**: Immediately halt any playing audio
-- **Volume Control**: Adjust playback volume up/down in 5dB increments with real-time display
+- **LED Strobing Effects**: GPIO pins 7 and 8 drive active-low relay-controlled lights
+- **Stop Button**: Immediately halts active `mpg321` playback and turns relays off
+- **Volume Control**: Adjusts ALSA `PCM` volume in 5 dB increments
 
 ### User Experience
-- **Responsive Mobile-First UI**: Touch-optimized for tablets and mobile devices
-- **Visual Feedback**: Button press effects, notifications, and status updates
-- **Audio Status Indicator**: Real-time indicator showing whether audio is currently playing
-- **Activity Logging**: Complete JSON-formatted history of all button actions with timestamps
+- **Responsive Mobile-First UI**: Touch-optimized for tablets and phones
+- **Visual Feedback**: Button processing state, notifications, and periodic status polling
+- **Audio Status Indicator**: Shows whether an `mpg321` process is currently running
+- **Activity Logging**: JSON-lines history of web UI and NHL worker actions
 
 ### Smart Features
-- **Action Locking**: Prevents multiple simultaneous button triggers for 35 seconds (prevents overlapping audio)
-- **Real-Time Status API**: Get current volume, audio status, and system state via JSON endpoint
-- **NHL API Integration**: Automatic goal detection and horn triggering for Blues games (optional, configurable)
-- **Settings Page**: Web-based configuration for NHL team selection and feed control
+- **Action Locking**: Prevents overlapping horn actions while a horn script is running
+- **Real-Time Status API**: Reports current volume and audio playback state as JSON
+- **NHL API Integration**: Optional background worker for automatic goal detection
+- **Settings Page**: Web-based NHL feed enable/disable and source-team selection
 
 ## Hardware Requirements
 
-- **Raspberry Pi** (tested on RPi 2B+, 3B+, 4B)
-- **LED Strobing Lights** (connected to GPIO pins 7 and 8)
-- **Audio Output** (3.5mm jack or USB audio device)
-- **Network Connection** (for web access and optional NHL API polling)
+- Raspberry Pi with GPIO header (tested targets: RPi 2B+, 3B+, 4B)
+- LED strobe/relay wiring connected to physical BOARD pins 7 and 8
+- Audio output supported by ALSA
+- Network connection for web access and optional NHL API polling
 
 ## Software Requirements
 
 ### System Packages
 
 ```bash
-sudo apt-get install python3 python3-pip git apache2 mpg321 php python3-rpi.gpio
+sudo apt-get update
+sudo apt-get install python3 git apache2 php mpg321 alsa-utils python3-rpi.gpio rsync
 ```
 
-> **Important:** `python3-rpi.gpio` is essential for GPIO pin control. Without it, relay instructions won't be properly passed to the LED lights.
+Package notes:
+- `python3-rpi.gpio` is required for GPIO pin control.
+- `mpg321` is used for MP3 playback.
+- `alsa-utils` provides `amixer`, which the status and volume scripts use.
+- `rsync` is used by the recommended deploy command.
 
-### Python Dependencies
+### Python Packages
 
-```bash
-sudo pip3 install alsaaudio
-```
+No additional Python package is required for the active v2.1.0 scripts. Some legacy files under `goalhorn/volume/old_volume_controls/` reference `alsaaudio`, but current volume control uses `amixer` through `subprocess`.
 
 ## Installation & Setup
 
-### 1. Clone the Repository
+### 1. Deploy to Apache Document Root
+
+v2.1.0 assumes the app is served directly from `/var/www/html`.
 
 ```bash
-cd /var/www/html
-sudo git clone https://github.com/jpk300/bluesgoal.git
+cd /tmp
+git clone https://github.com/jpk300/bluesgoal.git bluesgoal
 cd bluesgoal
 git checkout v2.1.0
+sudo rsync -a --delete --exclude .git --exclude mp3 --exclude images --exclude logs ./ /var/www/html/
 ```
+
+If `/var/www/html` contains Apache's default `index.html`, back it up before deploying if you want to keep it.
 
 ### 2. Configure Apache2
 
-Ensure Apache2 is running and your web root is `/var/www/html/`:
+Ensure Apache2 is running and serving `/var/www/html`:
 
 ```bash
-# Start Apache2
 sudo systemctl start apache2
-
-# Enable on boot
 sudo systemctl enable apache2
-
-# Check status
 sudo systemctl status apache2
 ```
 
-### 3. Create Log Directory
+### 3. Create Writable Runtime Directories
 
 ```bash
-# Create logs directory for activity tracking
-sudo mkdir -p /var/www/html/logs
-sudo chown www-data:www-data /var/www/html/logs
+sudo mkdir -p /var/www/html/logs /var/www/html/mp3 /var/www/html/images
+sudo chown -R www-data:www-data /var/www/html/logs
 sudo chmod 755 /var/www/html/logs
 ```
 
-### 4. Add MP3 Audio Files
+Recommended ownership model:
+- Keep application code readable/executable by Apache, but not necessarily owned by `www-data`.
+- Keep writable runtime directories, especially `/var/www/html/logs`, owned by `www-data`.
+- Keep MP3/image assets readable by Apache.
 
-Create the `mp3` directory and add your goal horn audio files:
+### 4. Add Required MP3 Audio Files
 
-```bash
-mkdir -p /var/www/html/mp3
+Audio files are intentionally not committed to Git. Add these files to `/var/www/html/mp3` unless you also update `config.py` and the legacy hard-coded script paths:
 
-# Required files (or customize via config.py):
-# - powerplay.mp3
-# - bluesgoal_winterclassic.mp3
-# - bluesgoal_oldschool.mp3
-# - marching_in.mp3
-# - marching_in_glenn.mp3
+```text
+/var/www/html/mp3/powerplay.mp3
+/var/www/html/mp3/bluesgoal_winterclassic.mp3
+/var/www/html/mp3/bluesgoal_oldschool.mp3
+/var/www/html/mp3/marching_in.mp3
+/var/www/html/mp3/marching_in_glenn.mp3
 ```
 
-### 5. Configure Sudo Permissions
+### 5. Add Required Image Assets
 
-The PHP scripts execute Python scripts with `sudo`. To avoid password prompts, add this to sudoers:
+Images are also excluded from Git. The current UI expects these files:
+
+```text
+/var/www/html/images/nhl_goal_logo.jpeg
+/var/www/html/images/bluesgoal_logo.jpeg
+/var/www/html/images/button_bluesgoal_powerplay.jpeg
+/var/www/html/images/button_bluesgoal_winterclassic.jpeg
+/var/www/html/images/button_bluesgoal_oldschool.jpeg
+/var/www/html/images/button_bluesgoal_marching_in_glenn.jpeg
+/var/www/html/images/button_bluesgoal_marching_in_2017.jpeg
+/var/www/html/images/button_volume_down.jpeg
+/var/www/html/images/button_stop.png
+/var/www/html/images/button_volume_up.jpeg
+```
+
+A fresh clone without these files will still serve the pages, but the button/logo imagery will be broken until assets are copied in.
+
+### 6. Configure Sudo Permissions
+
+The current PHP endpoints execute Python scripts with `sudo` so GPIO operations can run with the required privileges. The broad compatibility setup is:
 
 ```bash
 sudo visudo
 ```
 
-Add these lines at the end:
-
-```
-www-data ALL=(ALL) NOPASSWD: /usr/bin/python
+```text
 www-data ALL=(ALL) NOPASSWD: /usr/bin/python3
 ```
 
-### 6. Set File Permissions
+> **Security note:** This app is intended for a trusted home LAN, but passwordless `python3` for `www-data` is intentionally broad. A safer future setup is to use one root-owned action runner with an allowlist and restrict sudoers to that single runner, or move hardware control into a root-owned systemd service.
+
+Avoid granting `/usr/bin/python` unless you still need Python 2 legacy scripts. The active v2.1.0 scripts use Python 3.
+
+### 7. Set File Permissions
 
 ```bash
-sudo chown -R www-data:www-data /var/www/html/bluesgoal
-sudo chmod -R 755 /var/www/html/bluesgoal
-sudo chmod +x /var/www/html/bluesgoal/*.py
+sudo find /var/www/html -type d -exec chmod 755 {} \;
+sudo find /var/www/html -type f -exec chmod 644 {} \;
+sudo find /var/www/html -name '*.py' -exec chmod 755 {} \;
+sudo chown -R www-data:www-data /var/www/html/logs
 ```
 
 ## Usage
 
 ### Accessing the Web Interface
 
-Via mDNS hostname (recommended, requires network configuration):
-```
+Via mDNS hostname, if configured:
+
+```text
 http://bluesgoal.home.local
 ```
 
-Or use the Raspberry Pi's IP address:
-```
+Or by IP address:
+
+```text
 http://<raspberry-pi-ip>
 ```
 
-### Main Interface (index.html)
+### Main Interface (`index.html`)
 
-- **Goal Horn Buttons**: Click any button to play that sound and trigger LED strobe (5 variations arranged in grid)
-- **Volume Controls**: Adjust audio by 5dB increments (displays real-time volume %)
-- **Stop Button**: Immediately halt playback
-- **Audio Indicator**: Green dot shows audio is playing, gray shows idle
-- **Settings Link**: Access NHL API and other configuration options (top-right corner)
+- **Goal Horn Buttons**: Trigger a horn sound and GPIO strobe action.
+- **Volume Controls**: Adjust ALSA `PCM` volume by 5 dB.
+- **Stop Button**: Kills active `mpg321` playback and turns relays off.
+- **Audio Indicator**: Polls `_status.php` and turns green when audio is playing.
+- **Settings Link**: Opens NHL feed settings.
 
-### Settings Page (settings.html)
+### Settings Page (`settings.html`)
 
 Configure NHL API integration:
-- **Enable/Disable NHL API Feed**: Toggle automatic goal detection
-- **Select Source Team**: Choose which NHL team to monitor (default: St. Louis Blues)
-- **Feed Status**: View current worker process status and recent activity
+- Enable or disable automatic goal detection.
+- Select the NHL source team to monitor.
+- View worker status, polling frequency, watched game, and next scheduled game.
 
 ## Project Structure
 
-```
+```text
 bluesgoal/
 ├── README.md                  # This file
-├── config.py                  # Centralized configuration settings
-├── logger.py                  # Logging module for activity tracking
-├── log_activity.py            # PHP bridge for logging
+├── config.py                  # Intended central configuration settings
+├── logger.py                  # Activity/error logging helpers
+├── log_activity.py            # CLI bridge used by PHP logging helpers
 ├── index.html                 # Main web interface
 ├── settings.html              # NHL API configuration page
-├── .gitignore                 # Git ignore configuration
+├── .gitignore                 # Excludes local image/audio assets
 │
 ├── stylesheets/
-│   └── main.css              # Responsive CSS styling (mobile-optimized)
+│   └── main.css               # Responsive CSS styling
 │
-├── images/                   # Button images and backgrounds
+├── images/                    # Required local image assets, not committed
 │
-├── goalhorn/                 # Apache endpoints and backend scripts
-│   ├── _powerplay.php        # Power Play endpoint
+├── mp3/                       # Required local audio assets, not committed
+│
+├── logs/                      # Activity/error logs, created during setup
+│   ├── history.log            # JSON-lines activity log
+│   └── error.log              # JSON-lines error log
+│
+├── goalhorn/                  # Apache endpoints and backend scripts
+│   ├── _helpers.php           # Shared PHP JSON/logging/action helpers
+│   ├── _powerplay.php
 │   ├── _bluesgoal_winterclassic.php
 │   ├── _bluesgoal_oldschool.php
 │   ├── _marching_in.php
 │   ├── _marching_in_glenn.php
-│   ├── _stop.php             # Stop playback endpoint
-│   ├── _status.php           # System status JSON endpoint
-│   ├── _volume_up.php        # Volume control endpoints
+│   ├── _stop.php
+│   ├── _status.php
+│   ├── _volume_up.php
 │   ├── _volume_down.php
-│   ├── _nhl_feed.php         # NHL API feed control endpoint
-│   ├── _helpers.php          # Shared PHP utilities and logging
-│   │
-│   ├── powerplay/            # Backend Python scripts for each action
+│   ├── _nhl_feed.php
+│   ├── powerplay/
 │   ├── bluesgoal_oldschool/
 │   ├── bluesgoal_winterclassic/
 │   ├── marching_in/
 │   ├── marching_in_glenn/
 │   ├── status/
-│   ├── stop/                 # Kill audio process
-│   ├── volume/               # Volume control Python scripts
-│   ├── nhl_feed/             # NHL API worker and integrations
-│   │   └── nhl_feed.py       # Background worker for goal detection
-│   │
-│   └── unused/               # Deprecated scripts
+│   ├── stop/
+│   ├── volume/
+│   ├── nhl_feed/
+│   └── unused/                # Deprecated/legacy scripts
 │
-├── mp3/                      # Goal horn audio files (not in git)
-├── logs/                     # Activity history (created at setup)
-│   ├── history.log          # JSON-formatted activity log
-│   └── error.log            # Application errors
-│
-└── testscripts/              # Testing utilities
-    ├── test_gpio_alternating.py   # Test alternating GPIO pattern
-    ├── test_gpio_simultaneous.py  # Test simultaneous GPIO pattern
-    └── test_music.py              # Test audio playback
+└── testscripts/               # Manual hardware/audio test utilities
+    ├── test_gpio_alternating.py
+    ├── test_gpio_simutaneous.py  # Current v2.1.0 filename keeps this typo
+    └── test_music.py
 ```
 
 ## How It Works
 
 ### Manual Button Flow
 
-1. **User clicks a button** on the web interface (index.html)
-2. **JavaScript prevents page reload** and makes a fetch request to the PHP endpoint
-3. **Action lock check** - Verifies no similar action is already in progress (35 second timeout)
-4. **PHP endpoint executes** the corresponding Python script with `sudo`
-5. **Activity logging** - Action is logged to `/var/www/html/logs/history.log`
-6. **Python script runs**:
-   - For audio: Sets GPIO pins to OUTPUT (HIGH) mode, plays MP3 via mpg321, waits for completion, sets GPIO to INPUT (HIGH) mode
-   - For stop: Kills any active audio process
-   - For volume: Adjusts ALSA mixer levels
-7. **JSON response** is sent back with success status and message
-8. **Frontend updates**: Shows notification and refreshes status from API
-9. **LEDs strobe** in sync with audio playback
+1. The user taps a control on `index.html`.
+2. JavaScript prevents page navigation and sends a `fetch()` request to the corresponding PHP endpoint.
+3. The PHP helper attempts to acquire `/tmp/bluesgoal_action.lock` for horn actions.
+4. The PHP endpoint logs the action and runs the relevant Python script with `sudo python3`.
+5. Horn scripts configure BOARD pins 7 and 8 as outputs, drive them LOW to activate active-low relays, stop any existing `mpg321` process, start the selected MP3, keep relays active for about 30 seconds, drive pins HIGH, and clean up GPIO.
+6. Stop and volume endpoints do not use the horn-action lock, so they can interrupt/adjust playback.
+7. PHP returns a JSON response to the browser.
+8. The frontend shows a notification and refreshes status from `_status.php`.
 
 ### NHL API Integration (Optional)
 
-When enabled, a background Python worker continuously polls the NHL API:
+When enabled, the PHP settings endpoint starts a background Python worker that:
 
-1. **Worker starts** via `nhl_feed.php` endpoint
-2. **Polls NHL API** for Blues game status and goal events
-3. **Automatically triggers** goal horn when goal is detected
-4. **Logs events** to activity history
-5. **Reports status** via `/tmp/bluesgoal_nhl_feed_status.json`
+1. Reads the selected source team from `/tmp/bluesgoal_nhl_feed_settings.json`.
+2. Polls the NHL API for schedule and play-by-play data.
+3. Establishes a baseline of already-seen goal events to avoid replaying old goals.
+4. Triggers the Winter Classic horn when a new goal for the selected team is detected.
+5. Writes status to `/tmp/bluesgoal_nhl_feed_status.json` and logs events to `/var/www/html/logs/history.log`.
+
+> **Runtime-state note:** v2.1.0 currently stores NHL feed state and locks in `/tmp`. Those files can disappear after reboot and can interact poorly with Apache/systemd `PrivateTmp`. A future hardening pass should move durable state to `/var/lib/bluesgoal`, transient locks/status to `/run/bluesgoal`, and logs to `/var/log/bluesgoal`.
 
 ## Configuration
 
-Edit `config.py` to customize the application:
+`config.py` is intended to centralize key settings:
 
 ```python
-# Paths
 BASE_PATH = '/var/www/html'
-MP3_DIR = '/var/www/html/mp3'
-LOG_DIR = '/var/www/html/logs'
-
-# GPIO Settings
-GPIO_MODE = 'BOARD'           # Pin numbering mode
-RELAY_PINS = [7, 8]           # GPIO pins for LED control
-RELAY_ACTIVE_LOW = True        # HIGH=OFF, LOW=ON
-RELAY_DURATION = 30            # Strobe duration in seconds
-
-# Audio Settings
-AUDIO_CARD = 1                 # ALSA card number
-VOLUME_STEP = '5dB'            # Volume increment
-AUDIO_PLAYER = 'mpg321'        # Audio player command
-
-# Sound Mappings
+MP3_DIR = os.path.join(BASE_PATH, 'mp3')
+LOG_DIR = os.path.join(BASE_PATH, 'logs')
+RELAY_PINS = [7, 8]
+RELAY_ACTIVE_LOW = True
+RELAY_DURATION = 30
+AUDIO_CARD = 1
+VOLUME_STEP = '5dB'
+AUDIO_PLAYER = 'mpg321'
 SOUNDS = {
     'powerplay': 'powerplay.mp3',
     'bluesgoal_winterclassic': 'bluesgoal_winterclassic.mp3',
@@ -291,58 +311,44 @@ SOUNDS = {
     'marching_in': 'marching_in.mp3',
     'marching_in_glenn': 'marching_in_glenn.mp3',
 }
-
-# Logging
-LOG_LEVEL = 'INFO'             # DEBUG, INFO, WARNING, ERROR
 ```
+
+> **Current limitation:** Some v2.1.0 scripts still hard-code `/var/www/html`, `mpg321`, GPIO pins, ALSA card `1`, and `PCM`. If changing install paths, pins, mixer devices, or player commands, search the codebase for those hard-coded values until the planned shared action runner refactor is complete.
 
 ## GPIO Pin Usage
 
-- **Pin 7**: LED strobe control (active-low relay)
-- **Pin 8**: LED strobe control (active-low relay)
+- **Physical BOARD pin 7**: LED strobe relay control
+- **Physical BOARD pin 8**: LED strobe relay control
 
-Both pins use **active-low logic**:
-- **HIGH (3.3V)** = Relay OFF (lights off)
-- **LOW (0V)** = Relay ON (lights on/strobing)
+Both pins use active-low relay logic:
+- **HIGH (3.3V)** = relay OFF / lights off
+- **LOW (0V)** = relay ON / lights active
 
-**Important**: The `python3-rpi.gpio` package must be installed for GPIO instructions to be properly passed to the lights:
-
-```bash
-sudo apt install python3-rpi.gpio
-```
+The horn scripts currently keep both relays active for about 30 seconds.
 
 ## Logging & Activity History
 
-All button clicks and actions are logged to JSON format for easy tracking:
+Actions and errors are stored as JSON lines:
 
 ```bash
 # View real-time activity log
 tail -f /var/www/html/logs/history.log
 
 # Count actions by type
-cat /var/www/html/logs/history.log | jq '.action' | sort | uniq -c
+jq -r '.action' /var/www/html/logs/history.log | sort | uniq -c
 
 # Pretty-print the log
-cat /var/www/html/logs/history.log | jq '.'
+jq . /var/www/html/logs/history.log
 ```
 
 Sample log entry:
+
 ```json
 {
   "timestamp": "2026-05-29 14:44:38",
   "action": "powerplay",
-  "message": "Triggered from web UI",
+  "message": "Power Play has finished",
   "source": "web_ui"
-}
-```
-
-Sample NHL API log entry:
-```json
-{
-  "timestamp": "2026-05-29 15:22:15",
-  "action": "nhl_api_goal",
-  "message": "Goal detected for St. Louis Blues",
-  "source": "nhl_worker"
 }
 ```
 
@@ -350,24 +356,24 @@ Sample NHL API log entry:
 
 ### Real-Time Status API
 
-Get current system state as JSON:
-
 ```bash
 curl http://bluesgoal.home.local/goalhorn/_status.php
 ```
 
-Response:
+Current response shape:
+
 ```json
 {
   "success": true,
   "data": {
     "volume": 85,
-    "audio_playing": false,
-    "recent_actions": [...],
-    "activity_summary": {"powerplay": 5, "stop": 4}
-  }
+    "audio_playing": false
+  },
+  "timestamp": "2026-05-29 14:44:38"
 }
 ```
+
+`volume` may be the string `"unknown"` if `amixer` fails or the expected mixer output cannot be parsed.
 
 ### NHL Feed API
 
@@ -377,7 +383,8 @@ Get NHL feed status and configuration:
 curl http://bluesgoal.home.local/goalhorn/_nhl_feed.php
 ```
 
-Response:
+Example response:
+
 ```json
 {
   "success": true,
@@ -386,78 +393,108 @@ Response:
   "settings": {
     "source_team": "STL"
   },
-  "teams": ["ANA", "BOS", "BUF", ...],
+  "teams": ["ANA", "BOS", "BUF", "CAR", "STL"],
   "message": "NHL API feed enabled",
   "data": {
+    "enabled": true,
     "running": true,
-    "message": "Polling for Blues goals",
-    "last_poll_at": "2026-05-29T20:15:30Z"
-  }
+    "source_team": "STL",
+    "mode": "live",
+    "message": "Watching live play-by-play",
+    "current_poll_seconds": 3,
+    "last_poll_at": "2026-05-29T20:15:30+00:00"
+  },
+  "timestamp": "2026-05-29 15:15:30"
 }
+```
+
+Enable/disable the feed:
+
+```bash
+curl -X POST http://bluesgoal.home.local/goalhorn/_nhl_feed.php \
+  -H 'Content-Type: application/json' \
+  -d '{"enabled": true}'
+```
+
+Change source team:
+
+```bash
+curl -X POST http://bluesgoal.home.local/goalhorn/_nhl_feed.php \
+  -H 'Content-Type: application/json' \
+  -d '{"source_team": "STL"}'
 ```
 
 ## Testing
 
-The project includes test scripts to verify GPIO and audio functionality:
+The project includes manual test scripts for Raspberry Pi hardware/audio checks:
 
 ```bash
-# Test alternating GPIO pattern (pins 7 and 8 alternate)
-sudo python3 testscripts/test_gpio_alternating.py
+# Test alternating GPIO pattern on pins 7 and 8
+sudo python3 /var/www/html/testscripts/test_gpio_alternating.py
 
-# Test simultaneous GPIO pattern (pins 7 and 8 trigger together)
-sudo python3 testscripts/test_gpio_simultaneous.py
+# Test simultaneous GPIO pattern on pins 7 and 8
+# Note: filename is misspelled in v2.1.0.
+sudo python3 /var/www/html/testscripts/test_gpio_simutaneous.py
 
 # Test audio playback with all MP3 files
-python3 testscripts/test_music.py
+python3 /var/www/html/testscripts/test_music.py
 ```
+
+There is not yet a non-hardware automated regression test suite. Recommended future tests include NHL payload parsing, duplicate goal suppression, status JSON shape, logger behavior, and action command construction with mocked GPIO/subprocess calls.
 
 ## Troubleshooting
 
 ### Audio Not Playing
 
-- Verify MP3 files exist in `/var/www/html/mp3/`
-- Check that `mpg321` is installed: `which mpg321`
-- Test manual playback: `mpg321 /var/www/html/mp3/powerplay.mp3`
-- Verify audio output device is configured correctly
-- Use test script: `python3 testscripts/test_music.py`
-- Check that audio card number matches `config.py` (`AUDIO_CARD`)
+- Verify MP3 files exist in `/var/www/html/mp3/`.
+- Check that `mpg321` is installed: `which mpg321`.
+- Test manual playback: `mpg321 /var/www/html/mp3/powerplay.mp3`.
+- Verify the Raspberry Pi audio output device is configured correctly.
+- Check ALSA cards: `cat /proc/asound/cards`.
+- Test the music script: `python3 /var/www/html/testscripts/test_music.py`.
 
 ### LEDs Not Strobing
 
-- Verify GPIO pins 7 & 8 are properly wired to relay switches
-- Check that `python3-rpi.gpio` is installed: `dpkg -l | grep rpi.gpio`
-- Reinstall if needed: `sudo apt install python3-rpi.gpio`
-- Test GPIO manually: `python3 -c "import RPi.GPIO as GPIO; print(GPIO.VERSION)"`
-- Use test scripts to verify GPIO patterns: `sudo python3 testscripts/test_gpio_alternating.py`
-- Ensure the script runs with proper permissions (verify sudoers config)
-- Verify GPIO pins are not already in use by another process
-- Check relay wiring for active-low logic (HIGH = OFF, LOW = ON)
+- Verify GPIO pins 7 and 8 are wired to the relay inputs.
+- Check that `python3-rpi.gpio` is installed: `dpkg -l | grep rpi.gpio`.
+- Reinstall if needed: `sudo apt install python3-rpi.gpio`.
+- Test GPIO import: `python3 -c "import RPi.GPIO as GPIO; print(GPIO.VERSION)"`.
+- Run the manual GPIO test scripts.
+- Ensure sudoers is configured for `www-data` if running from the web UI.
+- Check relay wiring for active-low logic: HIGH = off, LOW = on.
 
 ### Page Not Loading
 
-- Verify Apache2 is running: `sudo systemctl status apache2`
-- Check file permissions: `ls -la /var/www/html/bluesgoal`
-- Review Apache error log: `sudo tail -f /var/log/apache2/error.log`
-- Verify the repository path matches Apache DocumentRoot
+- Verify Apache2 is running: `sudo systemctl status apache2`.
+- Confirm the app was deployed directly under `/var/www/html`.
+- Check file permissions: `ls -la /var/www/html`.
+- Review Apache errors: `sudo tail -f /var/log/apache2/error.log`.
+
+### Images Missing or Broken
+
+- Confirm `/var/www/html/images` exists.
+- Confirm all required image assets listed above are present.
+- Check browser developer tools for missing `404` image requests.
 
 ### Volume Control Not Working
 
-- Verify `alsaaudio` is installed: `pip3 list | grep alsaaudio`
-- Check ALSA mixer setup: `alsamixer`
-- Verify correct audio card: `arecord -l` or `cat /proc/asound/cards`
-- Test volume control manually: `amixer -c 1 set PCM 5dB+`
-- Ensure `config.py` has the correct `AUDIO_CARD` number
+- Check ALSA mixer setup: `alsamixer`.
+- Verify available cards: `cat /proc/asound/cards`.
+- Test the hard-coded current command: `amixer -c 1 set PCM 5dB+`.
+- If your card/control differs, update the volume and status scripts or complete the config refactor.
 
-### Status API Returns "unknown" Volume
+### Status API Returns `unknown` Volume
 
-- Check ALSA mixer is configured: `amixer -c 1 get PCM`
-- Ensure card number matches `config.py`: `cat /proc/asound/cards`
+- Check current command output: `amixer -c 1 get PCM`.
+- Confirm the output contains a percentage such as `[85%]`.
+- Confirm the correct ALSA card/control for your device.
 
-### Action Lock / "Wait for current action to complete"
+### Action Lock / “Wait for current action to complete”
 
-- This is expected behavior to prevent simultaneous triggers
-- Lock timeout is 35 seconds (configurable in `config.py`)
-- Check activity log to see what action is running: `tail -f /var/www/html/logs/history.log`
+- This is expected while a horn action is already running.
+- The lock file is `/tmp/bluesgoal_action.lock`.
+- Horn scripts currently keep relays active for about 30 seconds.
+- Use Stop if you need to interrupt playback.
 
 ### NHL Feed Polling Errors
 
@@ -494,61 +531,52 @@ sudo -u www-data sudo -n python3 -c 'print("sudo ok")'
 
 If sudoers verification fails, revisit the sudoers setup and ensure `www-data` has passwordless access to `/usr/bin/python3`. After fixing, toggle the NHL API feed off and back on in settings.
 
-**Note on systemd PrivateTmp**: On Raspberry Pi OS with systemd `PrivateTmp` enabled, Apache/PHP may write temporary files to isolated `/tmp` directories:
+**Note on systemd `PrivateTmp`:** If Apache/PHP uses an isolated `/tmp`, NHL feed files may be under a private Apache namespace. The most reliable status check is usually:
 
-```bash
-# Find status file in isolated namespace
-sudo find /tmp -path '*apache2.service*/tmp/bluesgoal_nhl_feed_status.json' -print -exec cat {} \; | jq .
-
-# Find worker logs in isolated namespace
-sudo find /tmp -path '*apache2.service*/tmp/bluesgoal_nhl_feed.log' -print -exec tail -n 80 {} \;
-```
-
-The most reliable status check is always:
 ```bash
 curl -s http://localhost/goalhorn/_nhl_feed.php | jq .
 ```
 
+## Known Maintenance Items
+
+These are known v2.1.0 cleanup opportunities:
+
+1. Replace duplicated horn scripts with one shared Python action runner.
+2. Use `config.py` consistently instead of hard-coded paths/pins/audio settings.
+3. Move durable NHL settings/state out of `/tmp`.
+4. Replace broad `www-data` passwordless Python sudo with a narrow runner or systemd service.
+5. Rename `test_gpio_simutaneous.py` to `test_gpio_simultaneous.py`.
+6. Add non-hardware automated tests.
+7. Rotate or bound activity/error logs.
+8. Split inline JavaScript/CSS into static assets as the UI grows.
+
 ## Recent Updates
 
 ### v2.1.0 (Latest)
-- ✅ **NHL API Integration** - Automatic goal detection and horn triggering for Blues games
-- ✅ **Settings Page** - Web-based configuration for NHL team selection and feed control
-- ✅ **Background Worker** - Dedicated Python process for polling NHL API
-- ✅ **Worker Status Monitoring** - Real-time display of NHL feed status
-- ✅ **Enhanced Activity Logging** - Separate tracking for NHL API events
-- ✅ **Better Error Messaging** - Comprehensive troubleshooting information
+- NHL API integration for automatic goal detection and horn triggering
+- Settings page for source-team selection and feed control
+- Background Python worker for NHL API polling
+- Worker status monitoring in the settings page
+- Enhanced activity logging for NHL API events
+- Improved troubleshooting documentation
 
 ### v2.0.0
-- ✅ **Fixed PHP redirect bug** - Now returns JSON responses instead of redirecting
-- ✅ **Python 3 migration** - All scripts updated to use Python 3
-- ✅ **Comprehensive error handling** - Try/catch blocks and proper error messages
-- ✅ **Real-time volume display** - Shows current volume % from ALSA mixer
-- ✅ **Smart action locking** - Prevents simultaneous button triggers
-- ✅ **Enhanced UX** - Button feedback, notifications, audio status indicator
-- ✅ **Activity logging** - Complete history with JSON format for easy parsing
-- ✅ **Config module** - Centralized configuration for easy customization
-- ✅ **Status API** - JSON endpoint for real-time system state
-- ✅ **Responsive design** - Improved mobile view and viewport optimization
-
-## Future Enhancements
-
-- Web-based audio file uploader
-- Mobile app for remote control
-- Statistics dashboard showing most-played sounds
-
+- JSON PHP responses instead of browser redirects
+- Python 3 migration for active scripts
+- Action locking to prevent overlapping horn triggers
+- Real-time volume display and audio status indicator
+- Activity logging in JSON-lines format
+- Central `config.py` introduced for future consolidation
+- Responsive design improvements
 
 ## Notes
 
-- Default localhost name: `bluesgoal.home.local` (configure in your network DNS or `/etc/hosts`)
-- The app requires `www-data` (Apache user) to have sudoers permissions to run Python scripts
-- LED strobing uses active-low relay logic (configure in `config.py` if needed)
-- All audio playback uses the `mpg321` command-line utility
-- GPIO control requires `python3-rpi.gpio` system package for proper hardware communication
-- Images and audio files are excluded from git (see `.gitignore`)
-- Activity logs are stored as JSON for easy programmatic access
-- NHL API worker runs as a separate background process managed by PHP
+- Default local hostname: `bluesgoal.home.local` if configured through DNS, mDNS, or `/etc/hosts`.
+- The app is intended for trusted local LAN use only.
+- Current active scripts use `mpg321`, `amixer`, and `python3-rpi.gpio`.
+- Local image and audio assets are excluded from Git by `.gitignore`.
+- NHL API worker state currently lives in `/tmp`.
 
 ## License
 
-Personal project - feel free to adapt for your own use!
+Personal project - feel free to adapt for your own use.
