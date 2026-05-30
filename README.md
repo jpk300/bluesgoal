@@ -1,7 +1,7 @@
 # St. Louis Blues Goal Horn Web App
 
 **Last updated:** May 30, 2026  
-**Current version:** v2.1.1 local
+**Current version:** v2.1.0 local
 
 A local Raspberry Pi web app for St. Louis Blues goal celebrations. It provides a touch-friendly Apache/PHP interface for goal horn audio, GPIO-controlled relay strobes, stop and volume controls, activity logging, and optional NHL API goal detection.
 
