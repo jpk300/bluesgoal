@@ -3,6 +3,16 @@
  * Shared helpers for goalhorn JSON endpoints.
  */
 
+const GOALHORN_RUN_DIR = '/run/bluesgoal';
+const GOALHORN_ACTION_LOCK_FILE = GOALHORN_RUN_DIR . '/action.lock';
+
+function goalhorn_ensure_run_dir() {
+    if (is_dir(GOALHORN_RUN_DIR)) {
+        return true;
+    }
+    return @mkdir(GOALHORN_RUN_DIR, 0775, true) || is_dir(GOALHORN_RUN_DIR);
+}
+
 function goalhorn_json_response($statusCode, $payload) {
     http_response_code($statusCode);
     header('Content-Type: application/json');
@@ -31,7 +41,15 @@ function goalhorn_run_python_action($action, $message, $scriptPath, $useLock = t
 
     $lockHandle = null;
     if ($useLock) {
-        $lockHandle = fopen('/tmp/bluesgoal_action.lock', 'c');
+        if (!goalhorn_ensure_run_dir()) {
+            goalhorn_json_response(500, [
+                'success' => false,
+                'error' => 'Unable to create runtime directory for action lock',
+                'timestamp' => date('Y-m-d H:i:s')
+            ]);
+        }
+
+        $lockHandle = fopen(GOALHORN_ACTION_LOCK_FILE, 'c');
         if (!$lockHandle) {
             goalhorn_json_response(500, [
                 'success' => false,

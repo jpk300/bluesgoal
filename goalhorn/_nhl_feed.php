@@ -1,17 +1,79 @@
 <?php
 require_once __DIR__ . '/_helpers.php';
 
-const NHL_FEED_ENABLED_FILE = '/tmp/bluesgoal_nhl_feed_enabled';
-const NHL_FEED_SETTINGS_FILE = '/tmp/bluesgoal_nhl_feed_settings.json';
-const NHL_FEED_STATUS_FILE = '/tmp/bluesgoal_nhl_feed_status.json';
-const NHL_FEED_STATE_FILE = '/tmp/bluesgoal_nhl_feed_state.json';
-const NHL_FEED_LOG = '/tmp/bluesgoal_nhl_feed.log';
+const BLUESGOAL_DATA_DIR = '/var/lib/bluesgoal';
+const BLUESGOAL_RUN_DIR = '/run/bluesgoal';
+const BLUESGOAL_LOG_DIR = '/var/log/bluesgoal';
+const NHL_TEAMS_FILE = __DIR__ . '/../config/nhl_teams.json';
+
+const NHL_FEED_ENABLED_FILE = BLUESGOAL_DATA_DIR . '/nhl_feed_enabled';
+const NHL_FEED_SETTINGS_FILE = BLUESGOAL_DATA_DIR . '/nhl_feed_settings.json';
+const NHL_FEED_STATUS_FILE = BLUESGOAL_RUN_DIR . '/nhl_feed_status.json';
+const NHL_FEED_STATE_FILE = BLUESGOAL_DATA_DIR . '/nhl_feed_state.json';
+const NHL_FEED_LOG = BLUESGOAL_LOG_DIR . '/nhl_feed.log';
+
+const LEGACY_NHL_FEED_ENABLED_FILE = '/tmp/bluesgoal_nhl_feed_enabled';
+const LEGACY_NHL_FEED_SETTINGS_FILE = '/tmp/bluesgoal_nhl_feed_settings.json';
+const LEGACY_NHL_FEED_STATUS_FILE = '/tmp/bluesgoal_nhl_feed_status.json';
+const LEGACY_NHL_FEED_STATE_FILE = '/tmp/bluesgoal_nhl_feed_state.json';
+
+function nhl_feed_ensure_dir($dir) {
+    if (is_dir($dir)) {
+        return true;
+    }
+    return @mkdir($dir, 0775, true) || is_dir($dir);
+}
+
+function nhl_feed_ensure_runtime_dirs() {
+    return nhl_feed_ensure_dir(BLUESGOAL_DATA_DIR)
+        && nhl_feed_ensure_dir(BLUESGOAL_RUN_DIR)
+        && nhl_feed_ensure_dir(BLUESGOAL_LOG_DIR);
+}
+
+function nhl_feed_migrate_legacy_file($newPath, $legacyPath) {
+    if (file_exists($newPath) || !file_exists($legacyPath)) {
+        return;
+    }
+
+    $dir = dirname($newPath);
+    if (!nhl_feed_ensure_dir($dir)) {
+        return;
+    }
+
+    @copy($legacyPath, $newPath);
+}
+
+function nhl_feed_migrate_legacy_files() {
+    nhl_feed_migrate_legacy_file(NHL_FEED_ENABLED_FILE, LEGACY_NHL_FEED_ENABLED_FILE);
+    nhl_feed_migrate_legacy_file(NHL_FEED_SETTINGS_FILE, LEGACY_NHL_FEED_SETTINGS_FILE);
+    nhl_feed_migrate_legacy_file(NHL_FEED_STATUS_FILE, LEGACY_NHL_FEED_STATUS_FILE);
+    nhl_feed_migrate_legacy_file(NHL_FEED_STATE_FILE, LEGACY_NHL_FEED_STATE_FILE);
+}
+
+function nhl_feed_team_map() {
+    $decoded = json_decode((string) @file_get_contents(NHL_TEAMS_FILE), true);
+    $teams = is_array($decoded) && isset($decoded['teams']) && is_array($decoded['teams'])
+        ? $decoded['teams']
+        : ['STL' => 'St. Louis Blues'];
+
+    $normalized = [];
+    foreach ($teams as $abbrev => $name) {
+        $key = strtoupper(trim((string) $abbrev));
+        if ($key !== '' && is_string($name)) {
+            $normalized[$key] = $name;
+        }
+    }
+
+    return $normalized ?: ['STL' => 'St. Louis Blues'];
+}
 
 function nhl_feed_valid_teams() {
-    return ['ANA','BOS','BUF','CAR','CBJ','CGY','CHI','COL','DAL','DET','EDM','FLA','LAK','MIN','MTL','NJD','NSH','NYI','NYR','OTT','PHI','PIT','SEA','SJS','STL','TBL','TOR','UTA','VAN','VGK','WPG','WSH'];
+    return array_keys(nhl_feed_team_map());
 }
 
 function nhl_feed_settings() {
+    nhl_feed_migrate_legacy_files();
+
     $settings = [];
     if (file_exists(NHL_FEED_SETTINGS_FILE)) {
         $decoded = json_decode((string) @file_get_contents(NHL_FEED_SETTINGS_FILE), true);
@@ -28,15 +90,26 @@ function nhl_feed_settings() {
     return ['source_team' => $team];
 }
 
+function nhl_feed_write_json_file($path, $payload, $pretty = false) {
+    if (!nhl_feed_ensure_dir(dirname($path))) {
+        return false;
+    }
+
+    $flags = $pretty ? JSON_PRETTY_PRINT : 0;
+    return @file_put_contents($path, json_encode($payload, $flags), LOCK_EX) !== false;
+}
+
 function nhl_feed_write_settings($settings) {
-    @file_put_contents(NHL_FEED_SETTINGS_FILE, json_encode($settings), LOCK_EX);
+    return nhl_feed_write_json_file(NHL_FEED_SETTINGS_FILE, $settings);
 }
 
 function nhl_feed_is_enabled() {
+    nhl_feed_migrate_legacy_files();
     return file_exists(NHL_FEED_ENABLED_FILE) && trim((string) @file_get_contents(NHL_FEED_ENABLED_FILE)) === '1';
 }
 
 function nhl_feed_read_status() {
+    nhl_feed_migrate_legacy_files();
     if (!file_exists(NHL_FEED_STATUS_FILE)) {
         return [];
     }
@@ -69,7 +142,10 @@ function nhl_feed_is_running() {
 }
 
 function nhl_feed_write_enabled($enabled) {
-    @file_put_contents(NHL_FEED_ENABLED_FILE, $enabled ? '1' : '0', LOCK_EX);
+    if (!nhl_feed_ensure_dir(dirname(NHL_FEED_ENABLED_FILE))) {
+        return false;
+    }
+    return @file_put_contents(NHL_FEED_ENABLED_FILE, $enabled ? '1' : '0', LOCK_EX) !== false;
 }
 
 function nhl_feed_write_status($updates) {
@@ -77,7 +153,7 @@ function nhl_feed_write_status($updates) {
     $status = array_merge($status, $updates, [
         'updated_at' => gmdate('c')
     ]);
-    @file_put_contents(NHL_FEED_STATUS_FILE, json_encode($status, JSON_PRETTY_PRINT), LOCK_EX);
+    return nhl_feed_write_json_file(NHL_FEED_STATUS_FILE, $status, true);
 }
 
 function nhl_feed_recent_start_attempt($seconds = 30) {
@@ -98,6 +174,8 @@ function nhl_feed_worker_sudo_error() {
 }
 
 function nhl_feed_start_worker() {
+    nhl_feed_ensure_runtime_dirs();
+
     if (nhl_feed_is_running()) {
         return true;
     }
@@ -174,11 +252,14 @@ function nhl_feed_payload($message = null) {
         'running' => nhl_feed_is_running(),
         'settings' => nhl_feed_settings(),
         'teams' => nhl_feed_valid_teams(),
+        'team_labels' => nhl_feed_team_map(),
         'message' => $message ?: ($enabled ? 'NHL API feed enabled' : 'Manual buttons only'),
         'data' => nhl_feed_read_status(),
         'timestamp' => date('Y-m-d H:i:s')
     ];
 }
+
+nhl_feed_migrate_legacy_files();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     if (nhl_feed_is_enabled() && !nhl_feed_is_running()) {
@@ -214,14 +295,26 @@ if (array_key_exists('source_team', $payload)) {
     if ($team !== $settings['source_team']) {
         @unlink(NHL_FEED_STATE_FILE);
         $settings['source_team'] = $team;
-        nhl_feed_write_settings($settings);
+        if (!nhl_feed_write_settings($settings)) {
+            goalhorn_json_response(500, [
+                'success' => false,
+                'error' => 'Unable to save NHL feed settings',
+                'timestamp' => date('Y-m-d H:i:s')
+            ]);
+        }
         goalhorn_log_activity('nhl_api_source_team_changed', 'NHL API source team changed to ' . $team);
     }
 }
 
 if (array_key_exists('enabled', $payload)) {
     $enabled = filter_var($payload['enabled'], FILTER_VALIDATE_BOOLEAN);
-    nhl_feed_write_enabled($enabled);
+    if (!nhl_feed_write_enabled($enabled)) {
+        goalhorn_json_response(500, [
+            'success' => false,
+            'error' => 'Unable to save NHL feed enabled state',
+            'timestamp' => date('Y-m-d H:i:s')
+        ]);
+    }
 
     if ($enabled) {
         goalhorn_log_activity('nhl_api_feed_enabled', 'NHL API feed enabled from settings page');

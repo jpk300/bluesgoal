@@ -26,23 +26,28 @@ PRE_GAME_POLL_SECONDS = 30
 LIVE_POLL_SECONDS = 3
 HTTP_TIMEOUT_SECONDS = 8
 
-ENABLED_FILE = "/tmp/bluesgoal_nhl_feed_enabled"
-SETTINGS_FILE = "/tmp/bluesgoal_nhl_feed_settings.json"
-STATUS_FILE = "/tmp/bluesgoal_nhl_feed_status.json"
-STATE_FILE = "/tmp/bluesgoal_nhl_feed_state.json"
-ACTION_LOCK_FILE = "/tmp/bluesgoal_action.lock"
+DATA_DIR = Path("/var/lib/bluesgoal")
+RUN_DIR = Path("/run/bluesgoal")
+LOG_DIR = Path("/var/log/bluesgoal")
+ENABLED_FILE = DATA_DIR / "nhl_feed_enabled"
+SETTINGS_FILE = DATA_DIR / "nhl_feed_settings.json"
+STATUS_FILE = RUN_DIR / "nhl_feed_status.json"
+STATE_FILE = DATA_DIR / "nhl_feed_state.json"
+ACTION_LOCK_FILE = RUN_DIR / "action.lock"
+PROCESS_LOCK_FILE = RUN_DIR / "nhl_feed.lock"
 
+LEGACY_ENABLED_FILE = Path("/tmp/bluesgoal_nhl_feed_enabled")
+LEGACY_SETTINGS_FILE = Path("/tmp/bluesgoal_nhl_feed_settings.json")
+LEGACY_STATUS_FILE = Path("/tmp/bluesgoal_nhl_feed_status.json")
+LEGACY_STATE_FILE = Path("/tmp/bluesgoal_nhl_feed_state.json")
 NHL_FEED_DIR = Path(__file__).resolve().parent
 GOALHORN_DIR = NHL_FEED_DIR.parent
 REPO_ROOT = GOALHORN_DIR.parent
-PROCESS_LOCK_FILE = str(NHL_FEED_DIR / "bluesgoal_nhl_feed.lock")
+NHL_TEAMS_FILE = REPO_ROOT / "config" / "nhl_teams.json"
 WINTER_CLASSIC_SCRIPT = str(GOALHORN_DIR / "bluesgoal_winterclassic" / "bluesgoal_winterclassic_master.py")
 LOG_ACTIVITY_SCRIPT = str(REPO_ROOT / "log_activity.py")
 LIVE_STATES = {"LIVE", "CRIT"}
 FINISHED_STATES = {"FINAL", "OFF"}
-VALID_TEAMS = {
-    "ANA", "BOS", "BUF", "CAR", "CBJ", "CGY", "CHI", "COL", "DAL", "DET", "EDM", "FLA", "LAK", "MIN", "MTL", "NJD", "NSH", "NYI", "NYR", "OTT", "PHI", "PIT", "SEA", "SJS", "STL", "TBL", "TOR", "UTA", "VAN", "VGK", "WPG", "WSH"
-}
 
 
 def utc_now():
@@ -58,11 +63,34 @@ def parse_utc(value):
 
 
 def read_enabled():
+    migrate_legacy_files()
     try:
         with open(ENABLED_FILE, "r", encoding="utf-8") as handle:
             return handle.read().strip() == "1"
     except FileNotFoundError:
         return False
+
+
+def ensure_runtime_dirs():
+    for directory in (DATA_DIR, RUN_DIR, LOG_DIR):
+        directory.mkdir(parents=True, exist_ok=True)
+
+
+def migrate_legacy_file(new_path, legacy_path):
+    if new_path.exists() or legacy_path is None or not legacy_path.exists():
+        return
+    new_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        new_path.write_bytes(legacy_path.read_bytes())
+    except OSError:
+        return
+
+
+def migrate_legacy_files():
+    migrate_legacy_file(ENABLED_FILE, LEGACY_ENABLED_FILE)
+    migrate_legacy_file(SETTINGS_FILE, LEGACY_SETTINGS_FILE)
+    migrate_legacy_file(STATUS_FILE, LEGACY_STATUS_FILE)
+    migrate_legacy_file(STATE_FILE, LEGACY_STATE_FILE)
 
 
 def read_json(path, default):
@@ -74,16 +102,34 @@ def read_json(path, default):
 
 
 def write_json(path, payload):
-    tmp_path = f"{path}.tmp"
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(f"{path.name}.tmp")
     with open(tmp_path, "w", encoding="utf-8") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
     os.replace(tmp_path, path)
 
 
+def read_team_map():
+    payload = read_json(NHL_TEAMS_FILE, {})
+    teams = payload.get("teams", {}) if isinstance(payload, dict) else {}
+    normalized = {
+        str(abbrev).strip().upper(): str(name)
+        for abbrev, name in teams.items()
+        if str(abbrev).strip()
+    }
+    return normalized or {DEFAULT_TEAM_ABBREV: "St. Louis Blues"}
+
+
+def valid_teams():
+    return set(read_team_map().keys())
+
+
 def read_settings():
+    migrate_legacy_files()
     settings = read_json(SETTINGS_FILE, {})
     team = str(settings.get("source_team", DEFAULT_TEAM_ABBREV)).upper()
-    if team not in VALID_TEAMS:
+    if team not in valid_teams():
         team = DEFAULT_TEAM_ABBREV
     return {"source_team": team}
 
@@ -337,6 +383,8 @@ def poll_game(game, source_team):
 
 
 def main():
+    ensure_runtime_dirs()
+    migrate_legacy_files()
     try:
         process_lock = acquire_lock(PROCESS_LOCK_FILE, blocking=False)
     except OSError as error:
