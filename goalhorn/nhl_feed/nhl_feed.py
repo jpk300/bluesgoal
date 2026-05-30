@@ -297,7 +297,7 @@ def trigger_winter_classic(source_team, game_id, event_id):
     action_lock = acquire_lock(ACTION_LOCK_FILE, blocking=True)
     try:
         result = subprocess.run(
-            ["sudo", "python3", ACTION_RUNNER_SCRIPT, "bluesgoal_winterclassic"],
+            ["sudo", "-n", "python3", ACTION_RUNNER_SCRIPT, "bluesgoal_winterclassic"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

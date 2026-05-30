@@ -72,7 +72,7 @@ function goalhorn_run_python_action($action, $message, $scriptPath, $useLock = t
 
     $outputLines = [];
     $exitCode = 0;
-    $command = 'sudo python3 ' . escapeshellarg($scriptPath);
+    $command = 'sudo -n python3 ' . escapeshellarg($scriptPath);
     foreach ($scriptArgs as $arg) {
         $command .= ' ' . escapeshellarg($arg);
     }

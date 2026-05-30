@@ -6,13 +6,14 @@ Centralized settings for easy customization.
 """
 
 import os
+from pathlib import Path
 
 # ============================================================================
 # PATHS
 # ============================================================================
-BASE_PATH = '/var/www/html'
-MP3_DIR = os.path.join(BASE_PATH, 'mp3')
-LOG_DIR = os.path.join(BASE_PATH, 'logs')
+BASE_PATH = os.environ.get('BLUESGOAL_BASE_PATH', '/var/www/html')
+MP3_DIR = os.environ.get('BLUESGOAL_MP3_DIR', os.path.join(BASE_PATH, 'mp3'))
+LOG_DIR = os.environ.get('BLUESGOAL_LOG_DIR', os.path.join(BASE_PATH, 'logs'))
 HISTORY_FILE = os.path.join(LOG_DIR, 'history.log')
 ERROR_LOG_FILE = os.path.join(LOG_DIR, 'error.log')
 
@@ -27,9 +28,9 @@ RELAY_DURATION = 30  # seconds
 # ============================================================================
 # AUDIO SETTINGS
 # ============================================================================
-AUDIO_CARD = 1  # ALSA card number
-VOLUME_STEP = '5dB'  # Step size for volume control
-AUDIO_PLAYER = 'mpg321'  # Command to use for audio playback
+AUDIO_CARD = os.environ.get('BLUESGOAL_AUDIO_CARD', '1')  # ALSA card number
+VOLUME_STEP = os.environ.get('BLUESGOAL_VOLUME_STEP', '5dB')  # Step size for volume control
+AUDIO_PLAYER = os.environ.get('BLUESGOAL_AUDIO_PLAYER', 'mpg321')  # Command to use for audio playback
 
 # ============================================================================
 # SOUND CONFIGURATIONS
@@ -69,8 +70,14 @@ LOG_DATE_FORMAT = '%Y-%m-%d %H:%M:%S'
 # ============================================================================
 def ensure_log_dir():
     """Create log directory if it doesn't exist."""
-    os.makedirs(LOG_DIR, exist_ok=True)
-    # Make sure www-data can write to it
-    os.system(f'chmod 755 {LOG_DIR}')
+    log_dir = Path(LOG_DIR)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    try:
+        log_dir.chmod(0o755)
+    except PermissionError:
+        # Directory ownership is handled by deployment; logging callers will
+        # still surface write failures through logger.log_error().
+        pass
+
 
 ensure_log_dir()
