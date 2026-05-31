@@ -50,6 +50,10 @@
                     <dd data-triggers-expected>Checking status...</dd>
                 </div>
                 <div>
+                    <dt>Automated goal horn</dt>
+                    <dd data-goal-horn>Checking status...</dd>
+                </div>
+                <div>
                     <dt>Watched game</dt>
                     <dd data-watched-game>None</dd>
                 </div>
@@ -72,6 +76,7 @@
         const nextPoll = document.querySelector('[data-next-poll]');
         const gameToday = document.querySelector('[data-game-today]');
         const triggersExpected = document.querySelector('[data-triggers-expected]');
+        const goalHorn = document.querySelector('[data-goal-horn]');
         const watchedGame = document.querySelector('[data-watched-game]');
         const nextGameStart = document.querySelector('[data-next-game-start]');
 
@@ -84,6 +89,10 @@
                 return data.last_error ? 'Worker unavailable' : 'Starting worker';
             }
             return data.message || 'Worker running; checking schedule';
+        }
+
+        function formatGoalHorn(sourceTeam) {
+            return sourceTeam === 'STL' ? 'Winter Classic' : 'NHL Horn';
         }
 
         function formatSeconds(seconds, payload) {
@@ -167,6 +176,7 @@
             nextPoll.textContent = formatNextPoll(data, payload);
             gameToday.textContent = typeof data.game_today === 'boolean' ? (data.game_today ? 'Yes' : 'No') : workerPendingText(payload);
             triggersExpected.textContent = typeof data.triggers_expected === 'boolean' ? (data.triggers_expected ? 'Expected if this team scores' : 'Not currently expected') : workerPendingText(payload);
+            goalHorn.textContent = formatGoalHorn(teamSelect.value);
             watchedGame.textContent = data.game || data.watched_game_id || 'None';
             nextGameStart.textContent = formatDateTime(data.next_game_start_utc) || 'None scheduled';
         }

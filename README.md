@@ -32,7 +32,7 @@ The recommended deployment remains Apache's default document root, `/var/www/htm
 - ALSA volume up/down controls using auto-detected mixer controls.
 - Browser status polling for current volume and audio playback state.
 - JSON-lines activity and error logs.
-- Optional NHL API feed that can trigger the Winter Classic horn when the selected team scores.
+- Optional NHL API feed that triggers the Winter Classic horn for STL goals and the NHL horn for other selected teams.
 - Optional systemd service installer so the NHL worker starts after reboot when enabled.
 
 ## Hardware Requirements
@@ -389,7 +389,7 @@ When enabled, the NHL worker:
 3. Sleeps until pregame watch time when a future game is found.
 4. Polls play-by-play during pregame/live states.
 5. Establishes a baseline of already-seen goal events so old goals are not replayed.
-6. Triggers the Winter Classic horn for new goals by the selected team.
+6. Triggers the Winter Classic horn for new STL goals or the NHL horn for goals by another selected team.
 7. Stores seen event IDs in `/var/lib/bluesgoal/nhl_feed_state.json`.
 8. Updates `/run/bluesgoal/nhl_feed_status.json` for the settings page.
 

@@ -295,15 +295,17 @@ def release_lock(handle):
         handle.close()
 
 
-def trigger_winter_classic(source_team, game_id, event_id):
+def trigger_goal_horn(source_team, game_id, event_id):
+    action = "bluesgoal_winterclassic" if source_team == "STL" else "nhl_horn"
+    horn_label = "Winter Classic" if source_team == "STL" else "NHL"
     message = f"NHL API detected {source_team} goal: game {game_id}, event {event_id}"
     log_activity("nhl_api_goal", message)
-    update_status(message="Goal detected; triggering Winter Classic", last_trigger=message, last_trigger_at=iso_now())
+    update_status(message=f"Goal detected; triggering {horn_label} horn", last_trigger=message, last_trigger_at=iso_now())
 
     action_lock = acquire_lock(ACTION_LOCK_FILE, blocking=True)
     try:
         result = subprocess.run(
-            ["sudo", "-n", "python3", "-B", ACTION_RUNNER_SCRIPT, "bluesgoal_winterclassic"],
+            ["sudo", "-n", "python3", "-B", ACTION_RUNNER_SCRIPT, action],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -315,8 +317,8 @@ def trigger_winter_classic(source_team, game_id, event_id):
 
     output = (result.stdout or result.stderr or "").strip()
     if result.returncode == 0:
-        update_status(message="Winter Classic triggered by NHL API", last_trigger_output=output)
-        log_activity("nhl_api_goal_complete", "Winter Classic goal horn triggered by NHL API")
+        update_status(message=f"{horn_label} horn triggered by NHL API", last_trigger_output=output)
+        log_activity("nhl_api_goal_complete", f"{horn_label} goal horn triggered by NHL API")
     else:
         update_status(message="NHL API trigger failed", last_error=output or f"Exit code {result.returncode}")
         log_activity("nhl_api_goal_error", output or f"Exit code {result.returncode}")
@@ -380,7 +382,7 @@ def poll_game(game, source_team):
             for event_id in goal_events:
                 if event_id not in seen_goal_events:
                     seen_goal_events.add(event_id)
-                    trigger_winter_classic(source_team, game_id, event_id)
+                    trigger_goal_horn(source_team, game_id, event_id)
 
         state.setdefault("seen_goal_events", {})[game_id] = sorted(seen_goal_events)
         state.setdefault("baseline_ready", {})[game_id] = baseline_ready
