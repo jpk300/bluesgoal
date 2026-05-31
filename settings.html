@@ -132,7 +132,10 @@
                 return `Live game polling every ${formatSeconds(seconds, payload)}`;
             }
 
-            const baseTime = parseStatusDate(data.last_poll_at || data.last_schedule_check_at || data.updated_at);
+            const lastCheckAt = data.mode === 'schedule'
+                ? (data.last_schedule_check_at || data.updated_at || data.last_poll_at)
+                : (data.last_poll_at || data.updated_at || data.last_schedule_check_at);
+            const baseTime = parseStatusDate(lastCheckAt);
             if (!baseTime) {
                 return `About ${formatSeconds(seconds, payload)} from last check`;
             }
