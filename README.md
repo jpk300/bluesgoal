@@ -231,6 +231,7 @@ bluesgoal_winterclassic.mp3
 bluesgoal_oldschool.mp3
 marching_in.mp3
 marching_in_glenn.mp3
+nhl_horn.mp3
 ```
 
 ### Image Files
@@ -292,6 +293,7 @@ curl -X POST http://bluesgoal.home.local/goalhorn/_bluesgoal_winterclassic.php
 curl -X POST http://bluesgoal.home.local/goalhorn/_bluesgoal_oldschool.php
 curl -X POST http://bluesgoal.home.local/goalhorn/_marching_in.php
 curl -X POST http://bluesgoal.home.local/goalhorn/_marching_in_glenn.php
+curl -X POST http://bluesgoal.home.local/goalhorn/_nhl_horn.php
 curl -X POST http://bluesgoal.home.local/goalhorn/_stop.php
 curl -X POST http://bluesgoal.home.local/goalhorn/_volume_up.php
 curl -X POST http://bluesgoal.home.local/goalhorn/_volume_down.php
@@ -421,6 +423,7 @@ SOUNDS = {
     'bluesgoal_oldschool': 'bluesgoal_oldschool.mp3',
     'marching_in': 'marching_in.mp3',
     'marching_in_glenn': 'marching_in_glenn.mp3',
+    'nhl_horn': 'nhl_horn.mp3',
 }
 ```
 
@@ -476,6 +479,7 @@ bluesgoal/
     |-- _bluesgoal_oldschool.php
     |-- _marching_in.php
     |-- _marching_in_glenn.php
+    |-- _nhl_horn.php
     |-- _stop.php
     |-- _status.php
     |-- _volume_up.php
@@ -490,6 +494,7 @@ bluesgoal/
     |-- bluesgoal_winterclassic/
     |-- marching_in/
     |-- marching_in_glenn/
+    |-- nhl_horn/
     |-- powerplay/
     `-- unused/
 ```

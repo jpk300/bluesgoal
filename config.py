@@ -43,6 +43,7 @@ SOUNDS = {
     'bluesgoal_oldschool': 'bluesgoal_oldschool.mp3',
     'marching_in': 'marching_in.mp3',
     'marching_in_glenn': 'marching_in_glenn.mp3',
+    'nhl_horn': 'nhl_horn.mp3',
 }
 
 # ============================================================================
@@ -54,6 +55,7 @@ BUTTON_LABELS = {
     'bluesgoal_oldschool': 'Old School',
     'marching_in': 'Marching In',
     'marching_in_glenn': 'Marching In (Glenn)',
+    'nhl_horn': 'NHL Horn',
     'volume_up': 'Volume Up',
     'volume_down': 'Volume Down',
     'stop': 'Stop',
