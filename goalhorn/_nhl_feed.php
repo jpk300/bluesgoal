@@ -149,6 +149,13 @@ function nhl_feed_write_enabled($enabled) {
     return @file_put_contents(NHL_FEED_ENABLED_FILE, $enabled ? '1' : '0', LOCK_EX) !== false;
 }
 
+function nhl_feed_wait_for_worker_stop($seconds = 5) {
+    $deadline = microtime(true) + $seconds;
+    while (nhl_feed_is_running() && microtime(true) < $deadline) {
+        usleep(250000);
+    }
+}
+
 function nhl_feed_write_status($updates) {
     $status = nhl_feed_read_status();
     $status = array_merge($status, $updates, [
@@ -327,6 +334,7 @@ if (array_key_exists('enabled', $payload)) {
     }
 
     goalhorn_log_activity('nhl_api_feed_disabled', 'NHL API feed disabled from settings page');
+    nhl_feed_wait_for_worker_stop();
     goalhorn_json_response(200, nhl_feed_payload('Manual buttons only'));
 }
 

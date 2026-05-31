@@ -145,7 +145,7 @@ def wait_enabled(seconds, source_team=None):
     while read_enabled() and time.monotonic() < end_at:
         if source_team and read_settings()["source_team"] != source_team:
             return
-        time.sleep(min(15, end_at - time.monotonic()))
+        time.sleep(min(1, end_at - time.monotonic()))
 
 
 def update_status(**updates):
