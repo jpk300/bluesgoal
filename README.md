@@ -272,7 +272,7 @@ Main controls:
 - Goal horn buttons trigger one sound and the relay strobe action.
 - Stop interrupts active playback and turns relays off.
 - Volume buttons adjust ALSA volume using the configured or auto-detected mixer control.
-- The status indicator polls `_status.php` every five seconds.
+- The status indicator refreshes after actions, every five seconds while audio is playing, every 60 seconds while idle, and when a hidden browser tab becomes visible again.
 - Settings opens NHL automation controls.
 
 Settings page:

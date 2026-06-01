@@ -78,9 +78,13 @@
         const processingButtons = new Set();
         let currentVolume = null;
         let volumeDisplayTimeout = null;
+        let statusPollTimeout = null;
+        const ACTIVE_STATUS_POLL_MS = 5000;
+        const IDLE_STATUS_POLL_MS = 60000;
 
         // Fetch and display current status
         async function updateStatus() {
+            let isPlaying = false;
             try {
                 const response = await fetch('goalhorn/_status.php', {
                     cache: 'no-store',
@@ -95,14 +99,25 @@
                     }
 
                     // Update audio playing status
-                    updateAudioStatus(data.data.audio_playing);
+                    isPlaying = Boolean(data.data.audio_playing);
+                    updateAudioStatus(isPlaying);
                 }
 
                 return true;
             } catch (e) {
                 console.error('Failed to get status:', e);
                 return false;
+            } finally {
+                scheduleStatusPoll(isPlaying ? ACTIVE_STATUS_POLL_MS : IDLE_STATUS_POLL_MS);
             }
+        }
+
+        function scheduleStatusPoll(delayMs) {
+            clearTimeout(statusPollTimeout);
+            if (document.hidden) {
+                return;
+            }
+            statusPollTimeout = setTimeout(updateStatus, delayMs);
         }
 
         function showVolumeDisplay(volume, durationMs = 2500) {
@@ -249,8 +264,13 @@ document.querySelectorAll('[data-action]').forEach((button) => {
 // Update status on page load
         updateStatus();
 
-        // Update status every 5 seconds
-        setInterval(updateStatus, 5000);
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                clearTimeout(statusPollTimeout);
+            } else {
+                updateStatus();
+            }
+        });
     </script>
 
     <style>
