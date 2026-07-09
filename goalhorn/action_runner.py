@@ -14,6 +14,11 @@ if str(REPO_ROOT) not in sys.path:
 
 from config import AUDIO_PLAYER, MP3_DIR, RELAY_ACTIVE_LOW, RELAY_DURATION, RELAY_PINS, SOUNDS
 
+try:
+    from config import LIGHT_ONLY_ACTIONS
+except ImportError:
+    LIGHT_ONLY_ACTIONS = {}
+
 
 def relay_on_level():
     """Return the GPIO level that activates the relay."""
@@ -48,25 +53,21 @@ def play_audio(mp3_path):
     return subprocess.Popen([AUDIO_PLAYER, str(mp3_path)])
 
 
-def run_action(action):
-    """Run a validated goal horn action through one shared GPIO/audio lifecycle."""
-    if action not in SOUNDS:
-        allowed = ", ".join(sorted(SOUNDS))
-        raise ValueError(f"Unsupported action '{action}'. Allowed actions: {allowed}")
-
-    mp3_path = Path(MP3_DIR) / SOUNDS[action]
-    if not mp3_path.exists():
-        raise FileNotFoundError(f"Audio file not found: {mp3_path}")
-
-    stop_audio()
+def run_relay_cycle(action, mp3_path=None):
+    """Run the shared relay lifecycle, optionally starting audio."""
+    if mp3_path is not None:
+        stop_audio()
 
     gpio = setup_gpio()
     try:
         print(f"Turning relays ON for {action}")
         gpio.output(RELAY_PINS, relay_on_level())
 
-        print(f"Starting audio: {mp3_path}")
-        play_audio(mp3_path)
+        if mp3_path is not None:
+            print(f"Starting audio: {mp3_path}")
+            play_audio(mp3_path)
+        else:
+            print(f"Lights-only action: {action}")
 
         print(f"Keeping relays active for {RELAY_DURATION} seconds")
         time.sleep(RELAY_DURATION)
@@ -79,6 +80,29 @@ def run_action(action):
         finally:
             gpio.cleanup()
 
+
+def run_action(action):
+    """Run a validated goal horn action through one shared GPIO/audio lifecycle."""
+    if action in LIGHT_ONLY_ACTIONS:
+        run_relay_cycle(action)
+        return {
+            "success": True,
+            "action": action,
+            "audio_file": None,
+            "relay_pins": RELAY_PINS,
+            "relay_duration_seconds": RELAY_DURATION,
+        }
+
+    if action not in SOUNDS:
+        allowed = ", ".join(sorted(set(SOUNDS) | set(LIGHT_ONLY_ACTIONS)))
+        raise ValueError(f"Unsupported action '{action}'. Allowed actions: {allowed}")
+
+    mp3_path = Path(MP3_DIR) / SOUNDS[action]
+    if not mp3_path.exists():
+        raise FileNotFoundError(f"Audio file not found: {mp3_path}")
+
+    run_relay_cycle(action, mp3_path)
+
     return {
         "success": True,
         "action": action,
@@ -90,7 +114,7 @@ def run_action(action):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description="Run a Blues goal horn sound action")
-    parser.add_argument("action", choices=sorted(SOUNDS), help="Sound action to run")
+    parser.add_argument("action", choices=sorted(set(SOUNDS) | set(LIGHT_ONLY_ACTIONS)), help="Sound or lights-only action to run")
     args = parser.parse_args(argv)
 
     try:
