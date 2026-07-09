@@ -198,7 +198,7 @@ def team_abbrev(game, side):
 
 def side_runs(game, side):
     linescore = game.get("linescore", {}).get("teams", {}).get(side, {})
-    if "runs" in linescore:
+    if isinstance(linescore, dict) and "runs" in linescore:
         return int(linescore.get("runs") or 0)
     return int(game.get("teams", {}).get(side, {}).get("score") or 0)
 
