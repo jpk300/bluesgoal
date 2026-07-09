@@ -46,6 +46,11 @@ SOUNDS = {
     'nhl_horn': 'nhl_horn.mp3',
 }
 
+# Actions that trigger the GPIO relays without requiring an MP3 file.
+LIGHT_ONLY_ACTIONS = {
+    'mlb_run_lights': 'MLB Run Lights',
+}
+
 # ============================================================================
 # BUTTON LABELS FOR UI
 # ============================================================================
@@ -56,6 +61,7 @@ BUTTON_LABELS = {
     'marching_in': 'Marching In',
     'marching_in_glenn': 'Marching In (Glenn)',
     'nhl_horn': 'NHL Horn',
+    'mlb_run_lights': 'MLB Run Lights',
     'volume_up': 'Volume Up',
     'volume_down': 'Volume Down',
     'stop': 'Stop',
