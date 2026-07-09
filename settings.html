@@ -18,10 +18,10 @@
             <div class="settings-row settings-row--split">
                 <div>
                     <h2>NHL API Feed</h2>
-                    <p data-feed-status>Manual buttons only</p>
+                    <p data-nhl-feed-status>Manual buttons only</p>
                 </div>
                 <label class="feed-toggle">
-                    <input class="feed-toggle__input" type="checkbox" data-feed-toggle>
+                    <input class="feed-toggle__input" type="checkbox" data-nhl-feed-toggle>
                     <span class="feed-toggle__track" aria-hidden="true"></span>
                     <span class="feed-toggle__label">Automated feed</span>
                 </label>
@@ -29,208 +29,300 @@
 
             <label class="settings-field">
                 <span>Trigger source team</span>
-                <select data-team-select></select>
+                <select data-nhl-team-select></select>
             </label>
 
             <dl class="settings-status-grid">
                 <div>
                     <dt>Polling frequency</dt>
-                    <dd data-current-poll>Checking status...</dd>
+                    <dd data-nhl-current-poll>Checking status...</dd>
                 </div>
                 <div>
                     <dt>Next poll</dt>
-                    <dd data-next-poll>Checking status...</dd>
+                    <dd data-nhl-next-poll>Checking status...</dd>
                 </div>
                 <div>
                     <dt>Game today</dt>
-                    <dd data-game-today>Checking status...</dd>
+                    <dd data-nhl-game-today>Checking status...</dd>
                 </div>
                 <div>
                     <dt>Automated triggers</dt>
-                    <dd data-triggers-expected>Checking status...</dd>
+                    <dd data-nhl-triggers-expected>Checking status...</dd>
                 </div>
                 <div>
                     <dt>Automated goal horn</dt>
-                    <dd data-goal-horn>Checking status...</dd>
+                    <dd data-nhl-action>Checking status...</dd>
                 </div>
                 <div>
                     <dt>Watched game</dt>
-                    <dd data-watched-game>None</dd>
+                    <dd data-nhl-watched-game>None</dd>
                 </div>
-		<div>
+                <div>
                     <dt>Next game starts</dt>
-                    <dd data-next-game-start>None scheduled</dd>
+                    <dd data-nhl-next-game-start>None scheduled</dd>
+                </div>
+            </dl>
+        </section>
+
+        <section class="settings-panel" aria-label="MLB run trigger automation">
+            <div class="settings-row settings-row--split">
+                <div>
+                    <h2>MLB Run Trigger</h2>
+                    <p data-mlb-feed-status>MLB run trigger off</p>
+                </div>
+                <label class="feed-toggle">
+                    <input class="feed-toggle__input" type="checkbox" data-mlb-feed-toggle>
+                    <span class="feed-toggle__track" aria-hidden="true"></span>
+                    <span class="feed-toggle__label">Run trigger</span>
+                </label>
+            </div>
+
+            <label class="settings-field">
+                <span>Trigger source team</span>
+                <select data-mlb-team-select></select>
+            </label>
+
+            <dl class="settings-status-grid">
+                <div>
+                    <dt>Polling frequency</dt>
+                    <dd data-mlb-current-poll>Checking status...</dd>
+                </div>
+                <div>
+                    <dt>Next poll</dt>
+                    <dd data-mlb-next-poll>Checking status...</dd>
+                </div>
+                <div>
+                    <dt>Game today</dt>
+                    <dd data-mlb-game-today>Checking status...</dd>
+                </div>
+                <div>
+                    <dt>Automated triggers</dt>
+                    <dd data-mlb-triggers-expected>Checking status...</dd>
+                </div>
+                <div>
+                    <dt>Automated action</dt>
+                    <dd data-mlb-action>Lights only</dd>
+                </div>
+                <div>
+                    <dt>Watched game</dt>
+                    <dd data-mlb-watched-game>None</dd>
+                </div>
+                <div>
+                    <dt>Next game starts</dt>
+                    <dd data-mlb-next-game-start>None scheduled</dd>
                 </div>
             </dl>
         </section>
     </main>
 
     <script>
-        const NHL_FEED_STATUS_URL = 'goalhorn/_nhl_feed.php';
-        let teamLabels = {};
+        function createFeedController(config) {
+            let teamLabels = {};
 
-        const feedToggle = document.querySelector('[data-feed-toggle]');
-        const feedStatus = document.querySelector('[data-feed-status]');
-        const teamSelect = document.querySelector('[data-team-select]');
-        const currentPoll = document.querySelector('[data-current-poll]');
-        const nextPoll = document.querySelector('[data-next-poll]');
-        const gameToday = document.querySelector('[data-game-today]');
-        const triggersExpected = document.querySelector('[data-triggers-expected]');
-        const goalHorn = document.querySelector('[data-goal-horn]');
-        const watchedGame = document.querySelector('[data-watched-game]');
-        const nextGameStart = document.querySelector('[data-next-game-start]');
+            const feedToggle = document.querySelector(config.toggleSelector);
+            const feedStatus = document.querySelector(config.statusSelector);
+            const teamSelect = document.querySelector(config.teamSelector);
+            const currentPoll = document.querySelector(config.currentPollSelector);
+            const nextPoll = document.querySelector(config.nextPollSelector);
+            const gameToday = document.querySelector(config.gameTodaySelector);
+            const triggersExpected = document.querySelector(config.triggersExpectedSelector);
+            const action = document.querySelector(config.actionSelector);
+            const watchedGame = document.querySelector(config.watchedGameSelector);
+            const nextGameStart = document.querySelector(config.nextGameStartSelector);
 
-        function workerPendingText(payload) {
-            const data = payload.data || {};
-            if (!payload.enabled) {
-                return 'Manual buttons only';
-            }
-            if (!payload.running) {
-                return data.last_error ? 'Worker unavailable' : 'Starting worker';
-            }
-            return data.message || 'Worker running; checking schedule';
-        }
-
-        function formatGoalHorn(sourceTeam) {
-            return sourceTeam === 'STL' ? 'Winter Classic' : 'NHL Horn';
-        }
-
-        function formatSeconds(seconds, payload) {
-            const value = Number(seconds || 0);
-            if (!value) {
-                return workerPendingText(payload);
-            }
-            if (value >= 3600) {
-                return `${Math.round(value / 3600)} hours`;
-            }
-            if (value >= 60) {
-                return `${Math.round(value / 60)} minutes`;
-            }
-            return `${value} seconds`;
-        }
-
-        function parseStatusDate(value) {
-            if (!value) {
-                return null;
-            }
-            const date = new Date(value);
-            return Number.isNaN(date.getTime()) ? null : date;
-        }
-
-        function formatDateTime(value) {
-            const date = parseStatusDate(value);
-            if (!date) {
-                return null;
-            }
-            return new Intl.DateTimeFormat([], {
-                weekday: 'short',
-                month: 'short',
-                day: 'numeric',
-                hour: 'numeric',
-                minute: '2-digit',
-                timeZoneName: 'short'
-            }).format(date);
-        }
-
-        function formatNextPoll(data, payload) {
-            const seconds = Number(data.current_poll_seconds || data.schedule_poll_seconds || 0);
-            if (!seconds) {
-                return workerPendingText(payload);
-            }
-            if (data.mode === 'live') {
-                return `Live game polling every ${formatSeconds(seconds, payload)}`;
+            function workerPendingText(payload) {
+                const data = payload.data || {};
+                if (!payload.enabled) {
+                    return config.disabledText;
+                }
+                if (!payload.running) {
+                    return data.last_error ? 'Worker unavailable' : 'Starting worker';
+                }
+                return data.message || 'Worker running; checking schedule';
             }
 
-            const lastCheckAt = data.mode === 'schedule'
-                ? (data.last_schedule_check_at || data.updated_at || data.last_poll_at)
-                : (data.last_poll_at || data.updated_at || data.last_schedule_check_at);
-            const baseTime = parseStatusDate(lastCheckAt);
-            if (!baseTime) {
-                return `About ${formatSeconds(seconds, payload)} from last check`;
+            function formatSeconds(seconds, payload) {
+                const value = Number(seconds || 0);
+                if (!value) {
+                    return workerPendingText(payload);
+                }
+                if (value >= 3600) {
+                    return `${Math.round(value / 3600)} hours`;
+                }
+                if (value >= 60) {
+                    return `${Math.round(value / 60)} minutes`;
+                }
+                return `${value} seconds`;
             }
 
-            const nextTime = new Date(baseTime.getTime() + (seconds * 1000));
-            return formatDateTime(nextTime.toISOString()) || `About ${formatSeconds(seconds, payload)} from last check`;
-        }
-
-        function renderStatus(payload) {
-            const data = payload.data || {};
-            const settings = payload.settings || {};
-            const teams = payload.teams || Object.keys(teamLabels);
-
-            teamLabels = payload.team_labels || teamLabels || {};
-
-            if (!teamSelect.options.length) {
-                teams.forEach((team) => {
-                    const option = document.createElement('option');
-                    option.value = team;
-                    option.textContent = `${team} - ${teamLabels[team] || team}`;
-                    teamSelect.appendChild(option);
-                });
+            function parseStatusDate(value) {
+                if (!value) {
+                    return null;
+                }
+                const date = new Date(value);
+                return Number.isNaN(date.getTime()) ? null : date;
             }
 
-            teamSelect.value = settings.source_team || data.source_team || 'STL';
-            feedToggle.checked = Boolean(payload.enabled);
-            feedStatus.textContent = data.message || payload.message || 'Manual buttons only';
-            currentPoll.textContent = formatSeconds(data.current_poll_seconds || data.schedule_poll_seconds, payload);
-            nextPoll.textContent = formatNextPoll(data, payload);
-            gameToday.textContent = typeof data.game_today === 'boolean' ? (data.game_today ? 'Yes' : 'No') : workerPendingText(payload);
-            triggersExpected.textContent = typeof data.triggers_expected === 'boolean' ? (data.triggers_expected ? 'Expected if this team scores' : 'Not currently expected') : workerPendingText(payload);
-            goalHorn.textContent = formatGoalHorn(teamSelect.value);
-            watchedGame.textContent = data.game || data.watched_game_id || 'None';
-            nextGameStart.textContent = formatDateTime(data.next_game_start_utc) || 'None scheduled';
-        }
-
-        async function fetchSettings() {
-            const response = await fetch(NHL_FEED_STATUS_URL, {
-                cache: 'no-store',
-                credentials: 'same-origin'
-            });
-            const payload = await response.json();
-            if (payload.success) {
-                renderStatus(payload);
+            function formatDateTime(value) {
+                const date = parseStatusDate(value);
+                if (!date) {
+                    return null;
+                }
+                return new Intl.DateTimeFormat([], {
+                    weekday: 'short',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    timeZoneName: 'short'
+                }).format(date);
             }
-        }
 
-        async function saveSettings(changes) {
-            feedToggle.disabled = true;
-            teamSelect.disabled = true;
-            try {
-                const response = await fetch(NHL_FEED_STATUS_URL, {
-                    method: 'POST',
+            function formatNextPoll(data, payload) {
+                const seconds = Number(data.current_poll_seconds || data.schedule_poll_seconds || 0);
+                if (!seconds) {
+                    return workerPendingText(payload);
+                }
+                if (data.mode === 'live') {
+                    return `Live game polling every ${formatSeconds(seconds, payload)}`;
+                }
+
+                const lastCheckAt = data.mode === 'schedule'
+                    ? (data.last_schedule_check_at || data.updated_at || data.last_poll_at)
+                    : (data.last_poll_at || data.updated_at || data.last_schedule_check_at);
+                const baseTime = parseStatusDate(lastCheckAt);
+                if (!baseTime) {
+                    return `About ${formatSeconds(seconds, payload)} from last check`;
+                }
+
+                const nextTime = new Date(baseTime.getTime() + (seconds * 1000));
+                return formatDateTime(nextTime.toISOString()) || `About ${formatSeconds(seconds, payload)} from last check`;
+            }
+
+            function renderStatus(payload) {
+                const data = payload.data || {};
+                const settings = payload.settings || {};
+                const teams = payload.teams || Object.keys(teamLabels);
+
+                teamLabels = payload.team_labels || teamLabels || {};
+
+                if (!teamSelect.options.length) {
+                    teams.forEach((team) => {
+                        const option = document.createElement('option');
+                        option.value = team;
+                        option.textContent = `${team} - ${teamLabels[team] || team}`;
+                        teamSelect.appendChild(option);
+                    });
+                }
+
+                teamSelect.value = settings.source_team || data.source_team || config.defaultTeam;
+                feedToggle.checked = Boolean(payload.enabled);
+                feedStatus.textContent = data.message || payload.message || config.disabledText;
+                currentPoll.textContent = formatSeconds(data.current_poll_seconds || data.schedule_poll_seconds, payload);
+                nextPoll.textContent = formatNextPoll(data, payload);
+                gameToday.textContent = typeof data.game_today === 'boolean' ? (data.game_today ? 'Yes' : 'No') : workerPendingText(payload);
+                triggersExpected.textContent = typeof data.triggers_expected === 'boolean' ? (data.triggers_expected ? config.triggersExpectedText : 'Not currently expected') : workerPendingText(payload);
+                action.textContent = config.formatAction(teamSelect.value, teamLabels);
+                watchedGame.textContent = data.game || data.watched_game_id || 'None';
+                nextGameStart.textContent = formatDateTime(data.next_game_start_utc) || 'None scheduled';
+            }
+
+            async function fetchSettings() {
+                const response = await fetch(config.url, {
                     cache: 'no-store',
-                    credentials: 'same-origin',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify(changes)
+                    credentials: 'same-origin'
                 });
                 const payload = await response.json();
                 if (payload.success) {
                     renderStatus(payload);
-                } else {
-                    feedStatus.textContent = payload.error || 'Settings update failed';
-                    await fetchSettings();
                 }
-            } catch (error) {
-                feedStatus.textContent = 'NHL API feed settings unavailable';
-                await fetchSettings();
-            } finally {
-                feedToggle.disabled = false;
-                teamSelect.disabled = false;
             }
+
+            async function saveSettings(changes) {
+                feedToggle.disabled = true;
+                teamSelect.disabled = true;
+                try {
+                    const response = await fetch(config.url, {
+                        method: 'POST',
+                        cache: 'no-store',
+                        credentials: 'same-origin',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(changes)
+                    });
+                    const payload = await response.json();
+                    if (payload.success) {
+                        renderStatus(payload);
+                    } else {
+                        feedStatus.textContent = payload.error || 'Settings update failed';
+                        await fetchSettings();
+                    }
+                } catch (error) {
+                    feedStatus.textContent = config.unavailableText;
+                    await fetchSettings();
+                } finally {
+                    feedToggle.disabled = false;
+                    teamSelect.disabled = false;
+                }
+            }
+
+            feedToggle.addEventListener('change', () => {
+                saveSettings({ enabled: feedToggle.checked });
+            });
+
+            teamSelect.addEventListener('change', () => {
+                saveSettings({ source_team: teamSelect.value });
+            });
+
+            return { fetchSettings };
         }
 
-        feedToggle.addEventListener('change', () => {
-            saveSettings({ enabled: feedToggle.checked });
+        const nhlFeed = createFeedController({
+            url: 'goalhorn/_nhl_feed.php',
+            defaultTeam: 'STL',
+            disabledText: 'Manual buttons only',
+            unavailableText: 'NHL API feed settings unavailable',
+            triggersExpectedText: 'Expected if this team scores',
+            toggleSelector: '[data-nhl-feed-toggle]',
+            statusSelector: '[data-nhl-feed-status]',
+            teamSelector: '[data-nhl-team-select]',
+            currentPollSelector: '[data-nhl-current-poll]',
+            nextPollSelector: '[data-nhl-next-poll]',
+            gameTodaySelector: '[data-nhl-game-today]',
+            triggersExpectedSelector: '[data-nhl-triggers-expected]',
+            actionSelector: '[data-nhl-action]',
+            watchedGameSelector: '[data-nhl-watched-game]',
+            nextGameStartSelector: '[data-nhl-next-game-start]',
+            formatAction: (sourceTeam) => sourceTeam === 'STL' ? 'Winter Classic' : 'NHL Horn'
         });
 
-        teamSelect.addEventListener('change', () => {
-            saveSettings({ source_team: teamSelect.value });
+        const mlbFeed = createFeedController({
+            url: 'goalhorn/_mlb_feed.php',
+            defaultTeam: '138',
+            disabledText: 'MLB run trigger off',
+            unavailableText: 'MLB run trigger settings unavailable',
+            triggersExpectedText: 'Expected if this team scores a run',
+            toggleSelector: '[data-mlb-feed-toggle]',
+            statusSelector: '[data-mlb-feed-status]',
+            teamSelector: '[data-mlb-team-select]',
+            currentPollSelector: '[data-mlb-current-poll]',
+            nextPollSelector: '[data-mlb-next-poll]',
+            gameTodaySelector: '[data-mlb-game-today]',
+            triggersExpectedSelector: '[data-mlb-triggers-expected]',
+            actionSelector: '[data-mlb-action]',
+            watchedGameSelector: '[data-mlb-watched-game]',
+            nextGameStartSelector: '[data-mlb-next-game-start]',
+            formatAction: () => 'Lights only'
         });
 
-        fetchSettings();
-        setInterval(fetchSettings, 5000);
+        function fetchAllSettings() {
+            nhlFeed.fetchSettings();
+            mlbFeed.fetchSettings();
+        }
+
+        fetchAllSettings();
+        setInterval(fetchAllSettings, 5000);
     </script>
 </body>
 </html>
