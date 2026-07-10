@@ -12,12 +12,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from config import AUDIO_PLAYER, MP3_DIR, RELAY_ACTIVE_LOW, RELAY_DURATION, RELAY_PINS, SOUNDS
+from config import AUDIO_PLAYER, MLB_RELAY_DURATION, MP3_DIR, RELAY_ACTIVE_LOW, RELAY_DURATION, RELAY_PINS, SOUNDS
 
 try:
     from config import LIGHT_ONLY_ACTIONS
 except ImportError:
     LIGHT_ONLY_ACTIONS = {}
+
+MLB_ACTIONS = {"mlb_cardinals_run", "mlb_run_lights"}
 
 
 def relay_on_level():
@@ -53,7 +55,12 @@ def play_audio(mp3_path):
     return subprocess.Popen([AUDIO_PLAYER, str(mp3_path)])
 
 
-def run_relay_cycle(action, mp3_path=None):
+def relay_duration(action):
+    """Return the independently configurable relay duration for an action."""
+    return MLB_RELAY_DURATION if action in MLB_ACTIONS else RELAY_DURATION
+
+
+def run_relay_cycle(action, duration, mp3_path=None):
     """Run the shared relay lifecycle, optionally starting audio."""
     if mp3_path is not None:
         stop_audio()
@@ -69,8 +76,8 @@ def run_relay_cycle(action, mp3_path=None):
         else:
             print(f"Lights-only action: {action}")
 
-        print(f"Keeping relays active for {RELAY_DURATION} seconds")
-        time.sleep(RELAY_DURATION)
+        print(f"Keeping relays active for {duration} seconds")
+        time.sleep(duration)
 
         print("Turning relays OFF")
         gpio.output(RELAY_PINS, relay_off_level())
@@ -83,14 +90,15 @@ def run_relay_cycle(action, mp3_path=None):
 
 def run_action(action):
     """Run a validated goal horn action through one shared GPIO/audio lifecycle."""
+    duration = relay_duration(action)
     if action in LIGHT_ONLY_ACTIONS:
-        run_relay_cycle(action)
+        run_relay_cycle(action, duration)
         return {
             "success": True,
             "action": action,
             "audio_file": None,
             "relay_pins": RELAY_PINS,
-            "relay_duration_seconds": RELAY_DURATION,
+            "relay_duration_seconds": duration,
         }
 
     if action not in SOUNDS:
@@ -101,14 +109,14 @@ def run_action(action):
     if not mp3_path.exists():
         raise FileNotFoundError(f"Audio file not found: {mp3_path}")
 
-    run_relay_cycle(action, mp3_path)
+    run_relay_cycle(action, duration, mp3_path)
 
     return {
         "success": True,
         "action": action,
         "audio_file": str(mp3_path),
         "relay_pins": RELAY_PINS,
-        "relay_duration_seconds": RELAY_DURATION,
+        "relay_duration_seconds": duration,
     }
 
 

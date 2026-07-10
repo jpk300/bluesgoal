@@ -24,6 +24,7 @@ GPIO_MODE = 'BOARD'  # Use BOARD pin numbering
 RELAY_PINS = [7, 8]
 RELAY_ACTIVE_LOW = True  # True = HIGH is OFF, LOW is ON
 RELAY_DURATION = 30  # seconds
+MLB_RELAY_DURATION = 30  # seconds
 
 # ============================================================================
 # AUDIO SETTINGS

@@ -404,7 +404,7 @@ Important MLB feed files:
 3. The PHP helper validates the method and acquires `/run/bluesgoal/action.lock` for horn actions.
 4. The endpoint logs activity through `log_activity.py`.
 5. The endpoint runs the selected Python script with `sudo -n python3 -B`.
-6. `action_runner.py` validates the action against `SOUNDS`, resolves the MP3 path, configures GPIO, starts playback, keeps relays active for `RELAY_DURATION`, turns relays off, and cleans up GPIO.
+6. `action_runner.py` validates the action against `SOUNDS`, resolves the MP3 path, configures GPIO, starts playback, keeps relays active for the action's configured duration, turns relays off, and cleans up GPIO. Manual and NHL actions use `RELAY_DURATION`; MLB actions use `MLB_RELAY_DURATION`.
 7. PHP returns JSON to the browser.
 8. The browser shows a notification and refreshes status.
 
@@ -433,7 +433,7 @@ When enabled, the MLB worker:
 2. Checks the MLB schedule, wakes ten minutes before game time, and polls the hydrated linescore every eight seconds during live games.
 3. Establishes a saved run baseline so existing runs are not replayed after startup or restart.
 4. Detects an increase in the selected team's run total.
-5. For a Cardinals run, runs `mlb_cardinals_run`, which plays `gocrazyfolks.mp3` and activates both relays. For another selected team, runs the lights-only `mlb_run_lights` action.
+5. For a Cardinals run, runs `mlb_cardinals_run`, which plays `gocrazyfolks.mp3` and activates both relays. For another selected team, runs the lights-only `mlb_run_lights` action. Both MLB actions keep the relays active for `MLB_RELAY_DURATION` seconds.
 6. Stores the latest run total in `/var/lib/bluesgoal/mlb_feed_state.json` and reports live status through `/run/bluesgoal/mlb_feed_status.json`.
 
 The settings endpoint starts the MLB worker when the feature is enabled and no worker is running. Opening the Settings page also performs this health check during status polling.
@@ -451,6 +451,7 @@ LOG_DIR = os.environ.get('BLUESGOAL_LOG_DIR', os.path.join(BASE_PATH, 'logs'))
 RELAY_PINS = [7, 8]
 RELAY_ACTIVE_LOW = True
 RELAY_DURATION = 30
+MLB_RELAY_DURATION = 30
 AUDIO_CARD = os.environ.get('BLUESGOAL_AUDIO_CARD', '0')
 AUDIO_MIXER_CONTROL = os.environ.get('BLUESGOAL_AUDIO_MIXER_CONTROL', '')
 VOLUME_STEP = os.environ.get('BLUESGOAL_VOLUME_STEP', '5dB')
@@ -725,6 +726,7 @@ Current cleanup opportunities:
 - Added durable per-game run baselines to prevent old runs from retriggering lights after worker startup.
 - Added a shared lights-only MLB run action for non-Cardinals teams.
 - Cardinals scoring now plays `gocrazyfolks.mp3` while activating the goal lights.
+- Added an independent `MLB_RELAY_DURATION` setting so MLB light duration can differ from NHL and manual horn actions.
 - PHP action/status endpoints resolve scripts relative to the app root instead of hard-coding `/var/www/html`.
 - Manual action endpoints require `POST`.
 - Main page action requests now use `POST`.
