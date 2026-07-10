@@ -44,6 +44,7 @@ SOUNDS = {
     'marching_in': 'marching_in.mp3',
     'marching_in_glenn': 'marching_in_glenn.mp3',
     'nhl_horn': 'nhl_horn.mp3',
+    'mlb_cardinals_run': 'gocrazyfolks.mp3',
 }
 
 # Actions that trigger the GPIO relays without requiring an MP3 file.
@@ -62,6 +63,7 @@ BUTTON_LABELS = {
     'marching_in_glenn': 'Marching In (Glenn)',
     'nhl_horn': 'NHL Horn',
     'mlb_run_lights': 'MLB Run Lights',
+    'mlb_cardinals_run': 'Cardinals Run',
     'volume_up': 'Volume Up',
     'volume_down': 'Volume Down',
     'stop': 'Stop',

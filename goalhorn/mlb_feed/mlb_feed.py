@@ -44,6 +44,8 @@ REPO_ROOT = GOALHORN_DIR.parent
 MLB_TEAMS_FILE = REPO_ROOT / "config" / "mlb_teams.json"
 ACTION_RUNNER_SCRIPT = str(GOALHORN_DIR / "action_runner.py")
 LOG_ACTIVITY_SCRIPT = str(REPO_ROOT / "log_activity.py")
+CARDINALS_TEAM_ID = "138"
+CARDINALS_RUN_ACTION = "mlb_cardinals_run"
 LIGHTS_ACTION = "mlb_run_lights"
 LIVE_STATES = {"Live"}
 FINISHED_STATES = {"Final"}
@@ -318,16 +320,23 @@ def release_lock(handle):
         handle.close()
 
 
-def trigger_run_lights(source_team, game_pk, runs_added, total_runs):
+def run_action_for_team(source_team):
+    """Use the Cardinals celebration sound while keeping other teams lights-only."""
+    return CARDINALS_RUN_ACTION if str(source_team) == CARDINALS_TEAM_ID else LIGHTS_ACTION
+
+
+def trigger_run_action(source_team, game_pk, runs_added, total_runs):
     label = team_label(source_team)
+    action = run_action_for_team(source_team)
+    action_description = "Cardinals audio and lights" if action == CARDINALS_RUN_ACTION else "lights"
     message = f"MLB API detected {label} run: game {game_pk}, +{runs_added}, total {total_runs}"
     log_activity("mlb_api_run", message)
-    update_status(message="Run detected; triggering lights", last_trigger=message, last_trigger_at=iso_now())
+    update_status(message=f"Run detected; triggering {action_description}", last_trigger=message, last_trigger_at=iso_now())
 
     action_lock = acquire_lock(ACTION_LOCK_FILE, blocking=True)
     try:
         result = subprocess.run(
-            ["sudo", "-n", "python3", "-B", ACTION_RUNNER_SCRIPT, LIGHTS_ACTION],
+            ["sudo", "-n", "python3", "-B", ACTION_RUNNER_SCRIPT, action],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -339,8 +348,8 @@ def trigger_run_lights(source_team, game_pk, runs_added, total_runs):
 
     output = (result.stdout or result.stderr or "").strip()
     if result.returncode == 0:
-        update_status(message="MLB run lights triggered", last_trigger_output=output)
-        log_activity("mlb_api_run_complete", "MLB run lights triggered by API")
+        update_status(message=f"MLB run {action_description} triggered", last_trigger_output=output)
+        log_activity("mlb_api_run_complete", f"MLB run {action_description} triggered by API")
     else:
         update_status(message="MLB API trigger failed", last_error=output or f"Exit code {result.returncode}")
         log_activity("mlb_api_run_error", output or f"Exit code {result.returncode}")
@@ -395,7 +404,7 @@ def poll_game(game, source_team):
             update_status(message="Run baseline set; watching for new runs")
         elif current_state in LIVE_STATES and current_runs > last_runs:
             runs_added = current_runs - last_runs
-            trigger_run_lights(source_team, game_pk, runs_added, current_runs)
+            trigger_run_action(source_team, game_pk, runs_added, current_runs)
             last_runs = current_runs
         else:
             last_runs = max(last_runs, current_runs)

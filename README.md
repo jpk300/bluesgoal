@@ -1,9 +1,10 @@
 # St. Louis Blues Goal Horn Web App
 
-**Last updated:** May 30, 2026  
-**Current version:** v2.1.0 local
+**Last updated:** July 9, 2026
 
-A local Raspberry Pi web app for St. Louis Blues goal celebrations. It provides a touch-friendly Apache/PHP interface for goal horn audio, GPIO-controlled relay strobes, stop and volume controls, activity logging, and optional NHL API goal detection.
+**Current version:** v2.1.1
+
+A local Raspberry Pi web app for St. Louis Blues goal celebrations. It provides a touch-friendly Apache/PHP interface for goal horn audio, GPIO-controlled relay strobes, stop and volume controls, activity logging, and optional NHL and MLB scoring automation.
 
 This app is designed for a trusted home LAN. It is not hardened for internet exposure.
 
@@ -34,6 +35,8 @@ The recommended deployment remains Apache's default document root, `/var/www/htm
 - JSON-lines activity and error logs.
 - Optional NHL API feed that triggers the Winter Classic horn for STL goals and the NHL horn for other selected teams.
 - Optional systemd service installer so the NHL worker starts after reboot when enabled.
+- Optional MLB Stats API worker that monitors a selected team and triggers the goal lights for newly detected runs.
+- St. Louis Cardinals runs play `gocrazyfolks.mp3` while the goal lights are active; other selected MLB teams remain lights-only.
 
 ## Hardware Requirements
 
@@ -41,7 +44,7 @@ The recommended deployment remains Apache's default document root, `/var/www/htm
 - Relay or LED strobe wiring connected to physical BOARD pins 7 and 8.
 - Audio output supported by ALSA.
 - Network access for local browser clients.
-- Internet access only if the optional NHL API feed is enabled.
+- Internet access only if NHL or MLB automation is enabled.
 
 ## Software Requirements
 
@@ -123,9 +126,9 @@ The script creates and configures:
 - `/var/www/html/images` for local image assets.
 - `/var/www/html/mp3` for local audio assets.
 - `/var/www/html/logs` for web/app activity and error logs.
-- `/var/lib/bluesgoal` for durable NHL feed settings and state.
+- `/var/lib/bluesgoal` for durable NHL/MLB feed settings and state.
 - `/run/bluesgoal` for transient locks and worker status.
-- `/var/log/bluesgoal` for NHL worker logs.
+- `/var/log/bluesgoal` for NHL and MLB worker logs.
 
 It also makes application code root-owned and Apache-readable, restores write ownership only for runtime/asset directories, removes Python bytecode caches, and installs a `tmpfiles.d` rule for `/run/bluesgoal` when `systemd-tmpfiles` is available.
 
@@ -232,6 +235,7 @@ bluesgoal_oldschool.mp3
 marching_in.mp3
 marching_in_glenn.mp3
 nhl_horn.mp3
+gocrazyfolks.mp3
 ```
 
 ### Image Files
@@ -280,6 +284,8 @@ Settings page:
 - Enable or disable NHL API goal detection.
 - Select the source team to monitor.
 - View worker status, polling frequency, watched game, next game, and trigger expectations.
+- Enable or disable MLB run detection and select an MLB source team.
+- Cardinals runs trigger `gocrazyfolks.mp3` and the relays; runs by other selected MLB teams trigger only the relays.
 
 ## API Endpoints
 
@@ -365,6 +371,30 @@ Important NHL feed files:
 - Live status: `/run/bluesgoal/nhl_feed_status.json`
 - Worker log: `/var/log/bluesgoal/nhl_feed.log`
 
+### MLB Feed API
+
+Read MLB run-trigger status and configuration:
+
+```bash
+curl http://bluesgoal.home.local/goalhorn/_mlb_feed.php
+```
+
+Enable the feed or select the Cardinals (MLB team ID `138`):
+
+```bash
+curl -X POST http://bluesgoal.home.local/goalhorn/_mlb_feed.php \
+  -H 'Content-Type: application/json' \
+  -d '{"enabled": true, "source_team": "138"}'
+```
+
+Important MLB feed files:
+
+- Enabled flag: `/var/lib/bluesgoal/mlb_feed_enabled`
+- Settings: `/var/lib/bluesgoal/mlb_feed_settings.json`
+- Durable run-baseline state: `/var/lib/bluesgoal/mlb_feed_state.json`
+- Live status: `/run/bluesgoal/mlb_feed_status.json`
+- Worker log: `/var/log/bluesgoal/mlb_feed.log`
+
 ## How It Works
 
 ### Manual Button Flow
@@ -395,6 +425,19 @@ When enabled, the NHL worker:
 
 `game_today` is calculated using `BLUESGOAL_TIMEZONE`, default `America/Chicago`, so Central Time evening games are represented correctly.
 
+### MLB Feed Flow
+
+When enabled, the MLB worker:
+
+1. Reads the selected team from `/var/lib/bluesgoal/mlb_feed_settings.json` (Cardinals team ID `138` by default).
+2. Checks the MLB schedule, wakes ten minutes before game time, and polls the hydrated linescore every eight seconds during live games.
+3. Establishes a saved run baseline so existing runs are not replayed after startup or restart.
+4. Detects an increase in the selected team's run total.
+5. For a Cardinals run, runs `mlb_cardinals_run`, which plays `gocrazyfolks.mp3` and activates both relays. For another selected team, runs the lights-only `mlb_run_lights` action.
+6. Stores the latest run total in `/var/lib/bluesgoal/mlb_feed_state.json` and reports live status through `/run/bluesgoal/mlb_feed_status.json`.
+
+The settings endpoint starts the MLB worker when the feature is enabled and no worker is running. Opening the Settings page also performs this health check during status polling.
+
 ## Configuration
 
 ### Python App Configuration
@@ -424,8 +467,11 @@ SOUNDS = {
     'marching_in': 'marching_in.mp3',
     'marching_in_glenn': 'marching_in_glenn.mp3',
     'nhl_horn': 'nhl_horn.mp3',
+    'mlb_cardinals_run': 'gocrazyfolks.mp3',
 }
 ```
+
+`mlb_run_lights` is configured separately as a lights-only action and does not require an MP3.
 
 ### Runtime Environment Variables
 
@@ -459,7 +505,8 @@ bluesgoal/
 |-- buildinfo/
 |   `-- wiring_diagram.pdf
 |-- config/
-|   `-- nhl_teams.json
+|   |-- nhl_teams.json
+|   `-- mlb_teams.json
 |-- scripts/
 |   |-- install_prereqs.sh
 |   |-- setup_permissions.sh
@@ -485,11 +532,13 @@ bluesgoal/
     |-- _volume_up.php
     |-- _volume_down.php
     |-- _nhl_feed.php
+    |-- _mlb_feed.php
     |-- action_runner.py
     |-- status/
     |-- stop/
     |-- volume/
     |-- nhl_feed/
+    |-- mlb_feed/
     |-- bluesgoal_oldschool/
     |-- bluesgoal_winterclassic/
     |-- marching_in/
@@ -552,10 +601,11 @@ Recommended validation after deployment:
 sudo -u www-data sudo -n python3 -B -c 'print("sudo ok")'
 curl -s http://localhost/goalhorn/_status.php
 curl -s http://localhost/goalhorn/_nhl_feed.php
+curl -s http://localhost/goalhorn/_mlb_feed.php
 sudo systemctl status bluesgoal-nhl-feed.service
 ```
 
-There is not yet a non-hardware automated regression test suite. Good future tests would cover NHL payload parsing, duplicate-goal suppression, status JSON shape, logger behavior, and action command construction with mocked GPIO/subprocess calls.
+There is not yet a non-hardware automated regression test suite. Good future tests would cover NHL payload parsing, MLB linescore parsing and run-baseline persistence, duplicate-score suppression, status JSON shape, logger behavior, and action command construction with mocked GPIO/subprocess calls.
 
 ## Troubleshooting
 
@@ -652,6 +702,10 @@ printf 'd /run/bluesgoal 0775 www-data www-data -\n' | sudo tee /etc/tmpfiles.d/
 sudo systemd-tmpfiles --create /etc/tmpfiles.d/bluesgoal.conf
 ```
 
+### MLB Feed Problems
+
+Use the same runtime, sudo, and Apache checks as the NHL feed, replacing `_nhl_feed.php` with `_mlb_feed.php`. Also inspect `/run/bluesgoal/mlb_feed_status.json` and `/var/log/bluesgoal/mlb_feed.log`. For Cardinals audio failures, confirm `/var/www/html/mp3/gocrazyfolks.mp3` exists and is readable by `www-data`.
+
 ## Maintenance Notes
 
 Current cleanup opportunities:
@@ -667,6 +721,10 @@ Current cleanup opportunities:
 
 ### v2.1.1 local
 
+- Added MLB Stats API run detection with selectable-team controls and live worker status on the Settings page.
+- Added durable per-game run baselines to prevent old runs from retriggering lights after worker startup.
+- Added a shared lights-only MLB run action for non-Cardinals teams.
+- Cardinals scoring now plays `gocrazyfolks.mp3` while activating the goal lights.
 - PHP action/status endpoints resolve scripts relative to the app root instead of hard-coding `/var/www/html`.
 - Manual action endpoints require `POST`.
 - Main page action requests now use `POST`.

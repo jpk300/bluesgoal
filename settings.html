@@ -101,7 +101,7 @@
                 </div>
                 <div>
                     <dt>Automated action</dt>
-                    <dd data-mlb-action>Lights only</dd>
+                    <dd data-mlb-action>Cardinals audio + lights</dd>
                 </div>
                 <div>
                     <dt>Watched game</dt>
@@ -313,7 +313,7 @@
             actionSelector: '[data-mlb-action]',
             watchedGameSelector: '[data-mlb-watched-game]',
             nextGameStartSelector: '[data-mlb-next-game-start]',
-            formatAction: () => 'Lights only'
+            formatAction: (sourceTeam) => sourceTeam === '138' ? 'Cardinals audio + lights' : 'Lights only'
         });
 
         function fetchAllSettings() {
