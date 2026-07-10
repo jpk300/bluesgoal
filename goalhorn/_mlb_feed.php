@@ -44,7 +44,9 @@ function mlb_feed_team_map() {
 }
 
 function mlb_feed_valid_teams() {
-    return array_keys(mlb_feed_team_map());
+    // PHP casts numeric-looking JSON object keys to integers. Normalize IDs
+    // back to strings so strict validation matches values sent by the browser.
+    return array_map('strval', array_keys(mlb_feed_team_map()));
 }
 
 function mlb_feed_settings() {

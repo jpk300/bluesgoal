@@ -727,6 +727,7 @@ Current cleanup opportunities:
 - Added a shared lights-only MLB run action for non-Cardinals teams.
 - Cardinals scoring now plays `gocrazyfolks.mp3` while activating the goal lights.
 - Added an independent `MLB_RELAY_DURATION` setting so MLB light duration can differ from NHL and manual horn actions.
+- Fixed MLB source-team selection by normalizing numeric MLB team IDs before strict request validation.
 - PHP action/status endpoints resolve scripts relative to the app root instead of hard-coding `/var/www/html`.
 - Manual action endpoints require `POST`.
 - Main page action requests now use `POST`.
